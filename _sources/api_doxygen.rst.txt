@@ -1,0 +1,101 @@
+.. _api_doxygen:
+
+======================================
+Auto-Generated C/C++ API (Doxygen)
+======================================
+
+This section contains API documentation for the **C and C++ interfaces**,
+automatically extracted from the PLATO source code by Doxygen and rendered
+by Breathe.
+
+.. note::
+
+   To populate this section, ensure Doxygen is installed and build the
+   documentation with ``make docs`` from the CMake build directory.
+   This runs Doxygen on the C/C++ headers and source files, generating
+   XML that Breathe renders below.
+
+   If Doxygen was not available during the build, this section will be empty.
+   Install Doxygen (``apt install doxygen`` or ``brew install doxygen``) and
+   rebuild.
+
+.. tip::
+
+   For the **Fortran API**, see :ref:`api_fortran`.
+   For a hand-written overview of all three language interfaces (Fortran, C,
+   C++), see :ref:`api_reference`.
+
+
+C API
+=====
+
+Main interface header
+---------------------
+
+.. doxygenfile:: plato_C_library_interface.h
+   :project: PLATO
+
+Constants
+---------
+
+.. doxygenfile:: plato_C_constants.h
+   :project: PLATO
+
+Fortran interop helpers
+-----------------------
+
+.. doxygenfile:: plato_C_fortran.h
+   :project: PLATO
+
+Unit conversions
+----------------
+
+.. doxygenfile:: plato_C_unit_conversion.h
+   :project: PLATO
+
+
+C++ API
+=======
+
+Main interface header
+---------------------
+
+.. doxygenfile:: plato_Cpp_library_interface.h
+   :project: PLATO
+
+Constants
+---------
+
+.. doxygenfile:: plato_Cpp_constants.h
+   :project: PLATO
+
+Fortran interop helpers
+-----------------------
+
+.. doxygenfile:: plato_Cpp_fortran.h
+   :project: PLATO
+
+
+GSL Bindings (Optional)
+========================
+
+These headers are only available when PLATO is built with GSL support
+(``--with-gsl=PATH``).
+
+.. doxygenfile:: plato_C_gsl.h
+   :project: PLATO
+
+.. doxygenfile:: plato_C_gsl_fit.h
+   :project: PLATO
+
+.. doxygenfile:: plato_C_gsl_sigma_table.h
+   :project: PLATO
+
+.. doxygenfile:: plato_C_gsl_avg_mom_cross_sec.h
+   :project: PLATO
+
+.. doxygenfile:: plato_C_gsl_avg_ff_cross_sec.h
+   :project: PLATO
+
+.. doxygenfile:: plato_C_gsl_sigma_ff.h
+   :project: PLATO

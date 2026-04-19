@@ -1,0 +1,160 @@
+.. _ex06_shock:
+
+====================================
+Example 6: Normal Shock Relaxation
+====================================
+
+Physical Context
+================
+
+A normal shock wave in air compresses and heats the gas to extreme
+temperatures. Immediately behind the shock (the "frozen" post-shock state),
+the gas is hot but still molecular. As it flows downstream, finite-rate
+chemical kinetics drives dissociation and (at high enough velocities)
+ionization. The gas relaxes toward equilibrium over a characteristic
+**relaxation length** that depends on the post-shock density and temperature.
+
+This example solves the steady 1D post-shock relaxation problem for air-5
+behind a strong shock:
+
+.. math::
+
+   \frac{d\rho_i}{dx} = \frac{\dot{\omega}_i}{u}, \qquad
+   \frac{dT_v}{dx} = \frac{\Omega_{\mathrm{VT}} + \Omega_{\mathrm{VE}}}
+   {\rho \, c_{v,\mathrm{vib}} \, u}
+
+where :math:`x` is the distance behind the shock and :math:`u` is the
+post-shock velocity (from Rankine--Hugoniot).
+
+**Theory reference:** :ref:`theory_kinetics`, :ref:`theory_noneq`.
+
+
+Input File
+==========
+
+This corresponds to the ``shock_mt_air5`` regression test:
+
+.. code-block:: text
+
+   #---------------------------
+   # SHOCK — MT air5
+   #---------------------------
+   PATH     = /path/to/database
+   MIXTURE  = air5
+   REACTION = air5
+   TRANSFER = TTv
+
+   # Free-stream conditions
+   P_OO    = 50.d0
+   T_OO    = 300.d0
+   U_OO    = 8000.d0
+   COMP_OO = O2 N2
+   XC_OO   = 0.21d0 0.79d0
+
+   # Space grid
+   XS     = 0.d0
+   XE     = 0.3d0
+   DX_MAX = 5.d-3
+   DX_MIN = 1.d-14
+   SF     = 1.01d0
+
+   # ODE solver
+   ATOL = 1.d-12
+   RTOL = 1.d-9
+
+**Free-stream conditions:**
+
+- :math:`p_\infty = 50` Pa (representative of ~70 km altitude)
+- :math:`T_\infty = 300` K
+- :math:`u_\infty = 8000` m/s (~Mach 26)
+- Composition: standard air (79% N\ :sub:`2`, 21% O\ :sub:`2`)
+
+PLATO automatically computes the Rankine--Hugoniot jump conditions to obtain
+the frozen post-shock state, which serves as the initial condition for the
+ODE integration.
+
+
+Running the Example
+===================
+
+.. code-block:: bash
+
+   cd build
+   ./apps/ode/shock ../test/regression/input/shock_mt_air5.in
+
+Or via regression:
+
+.. code-block:: bash
+
+   ctest -R shock_mt_air5 -V
+
+
+Expected Output
+===============
+
+The output contains spatial profiles of species, temperatures, and
+thermodynamic state behind the shock. Key features:
+
+.. code-block:: text
+
+   # x [m]    X_N       X_O       X_N2      X_NO      X_O2      Th [K]    Tv [K]
+   0.000e+00  0.000e+00 0.000e+00 7.900e-01 0.000e+00 2.100e-01 2.671e+04 3.000e+02
+   1.000e-05  2.151e-07 1.463e-03 7.886e-01 9.498e-06 2.099e-01 2.670e+04 3.096e+02
+   1.000e-03  2.020e-03 1.167e-01 6.846e-01 3.461e-03 1.930e-01 2.465e+04 3.824e+03
+   1.000e-02  7.627e-02 3.095e-01 4.094e-01 3.637e-02 1.685e-01 1.619e+04 1.102e+04
+   1.000e-01  2.930e-01 3.800e-01 1.050e-01 4.822e-02 1.739e-01 8.244e+03 7.853e+03
+   3.000e-01  3.530e-01 3.938e-01 5.755e-02 5.880e-02 1.369e-01 7.149e+03 7.063e+03
+
+- The frozen post-shock :math:`T_h \approx 26710` K (very hot!).
+- :math:`T_v` starts at the free-stream value (300 K) — vibrations are
+  initially frozen.
+- O\ :sub:`2` dissociates within the first millimeter.
+- N\ :sub:`2` dissociation takes several centimeters.
+- :math:`T_h` decreases as energy is consumed by dissociation (endothermic).
+- :math:`T_v` rises toward :math:`T_h` via VT relaxation.
+- By 30 cm, the temperatures approach equilibrium
+  (:math:`T_h \approx T_v \approx 7000` K).
+
+
+Results Plot
+============
+
+.. figure:: figures/ex06_shock_profiles.png
+   :width: 90%
+   :align: center
+
+   Post-shock relaxation profiles for air-5 at 8 km/s, 50 Pa. Top:
+   temperature profiles showing :math:`T_h` cooling and :math:`T_v` heating.
+   Bottom: species mole fractions showing sequential O\ :sub:`2` then
+   N\ :sub:`2` dissociation.
+
+
+Physical Interpretation
+=======================
+
+The physics behind the shock relaxation:
+
+1. **Immediately behind the shock** (:math:`x = 0`): The Rankine--Hugoniot
+   conditions produce a very high translational temperature (~27000 K) but
+   vibrational modes are "frozen" at the upstream value. This is the
+   maximum thermal nonequilibrium point.
+
+2. **VT relaxation zone** (0--1 mm): Vibrational-translational energy
+   transfer (:eq:`eq_omega_vt`) begins heating the vibrational mode.
+   :math:`T_v` rises while :math:`T_h` drops slightly.
+
+3. **Chemical relaxation zone** (1 mm -- 10 cm): Dissociation reactions
+   consume translational energy, causing :math:`T_h` to decrease
+   significantly. The endothermic dissociation acts as an energy sink.
+   O\ :sub:`2` dissociates first (weaker bond), followed by N\ :sub:`2`.
+
+4. **Equilibrium approach** (> 10 cm): The gas approaches thermochemical
+   equilibrium with :math:`T_h \approx T_v` and the composition close to
+   the LTE value at the local temperature and pressure.
+
+The **thermal nonequilibrium** (:math:`T_h \neq T_v`) is most extreme
+immediately behind the shock and relaxes over the VT relaxation length.
+The **chemical nonequilibrium** persists longer because the dissociation
+timescale exceeds the VT relaxation timescale.
+
+The plot is generated by ``scripts/plot_ex06.py``.

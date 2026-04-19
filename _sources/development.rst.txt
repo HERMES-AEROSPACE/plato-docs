@@ -1,0 +1,99 @@
+.. _development:
+
+=============================
+Development Plan & Roadmap
+=============================
+
+
+Phase 1: Codebase Learning
+==========================
+
+Completed steps:
+
+1. **Structural exploration** -- full directory structure mapped, module dependencies
+   documented
+2. **Build system audit** -- configure.ac and Makefile.am analyzed, build instructions
+   verified
+3. **Deep reads** -- thermo, transport, kinetics, interface modules documented
+4. **Application walkthrough** -- BOX, SHOCK, LAGR, GSI documented
+
+
+Phase 2: Development Tasks (Priority Order)
+============================================
+
+P1: Test Infrastructure
+-----------------------
+
+- Create unit tests for thermo module (compare against known values: He plasma at 1 atm)
+- Create unit tests for transport module (compare against Bruno et al. results)
+- Create regression tests using BOX and SHOCK applications
+- Set up CI/CD (GitHub Actions or self-hosted runner)
+
+P2: Documentation
+-----------------
+
+- Generate API reference from source (Doxygen + Breathe + Sphinx)
+- Add inline documentation where missing
+- Create example driver programs for each major capability
+
+P3: Ablation Chemistry
+----------------------
+
+Connects to active research:
+
+- Gas-surface interaction module (future work item #4 from paper)
+- B' table generation capability
+- Carbon ablation species and reactions in database
+
+P4: Code Quality
+----------------
+
+- Standardize error handling across modules
+- Review and clean up module dependencies
+- Ensure consistent use of Fortran 2003/2008 features
+- Add intent attributes where missing
+
+P5: Performance
+---------------
+
+- Profile transport system assembly and solve for large species sets (CR/StS)
+- Evaluate OpenBLAS vs. built-in numerics for transport systems
+- Consider sparse linear algebra for very large StS systems
+
+P6: New Physics
+---------------
+
+- Magnetized plasma support
+- Non-Boltzmann electron distributions
+- ML-based reduced-order model interfaces
+
+
+Phase 3: Workflow Integration
+=============================
+
+CI/CD Setup
+-----------
+
+Following the HEGEL pattern:
+
+1. GitHub Actions for basic build + test on push/PR
+2. Self-hosted runner for performance-sensitive tests
+3. Restart-based regression testing for application codes
+
+Code Review Process
+-------------------
+
+1. Changes proposed on a feature branch
+2. Lead developer reviews
+3. Principle: **merged-and-working over isolated-and-perfect**
+
+Fortran-Specific Conventions
+----------------------------
+
+- Watch for module dependency order in Makefiles (parallel build race conditions)
+- Use ``implicit none`` in all new code
+- All subroutine arguments need ``intent(in/out/inout)``
+- Allocatable arrays preferred over pointers
+- Use ``iso_c_binding`` for any new C-interop code
+- Double precision: use ``real(8)`` or ``dp`` kind parameter
+- Line length: stay within 132 characters (Fortran free-form limit)

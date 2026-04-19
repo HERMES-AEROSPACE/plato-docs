@@ -1,0 +1,576 @@
+.. _theory_equilibrium:
+
+========================
+Equilibrium Composition
+========================
+
+This chapter describes PLATO's algorithms for computing the chemical
+equilibrium (LTE) composition at a given :math:`(p, T)` or
+:math:`(\rho, T)`. Two solvers are available:
+
+- A **Newton--Raphson solver in log-space** with Schur-complement
+  reduction, following [Bottin1999]_. This is the default. An extended
+  version applies Debye--Hückel corrections [Griem1962]_ for ionized
+  plasmas.
+
+- A **Gibbs Function Continuation (GFC) solver** following the
+  multiphase formulation of [ScogginsMagin2015]_. This is opt-in,
+  requires LAPACK, and is the appropriate choice for stiff mixtures,
+  mixtures near phase transitions, and problems with generalized linear
+  constraints.
+
+The Newton solver is implemented in
+``src/thermo/thermo_equilibrium_comp.F90`` (standard) and
+``src/thermo/thermo_equilibrium_comp_dh.F90`` (Debye--Hückel corrected).
+The GFC solver is implemented in ``src/thermo/thermo_equil_gfc.F90``
+with supporting modules ``src/thermo/thermo_equil_gfc_simplex.F90``
+(Simplex LP initialization) and
+``src/thermo/thermo_equil_gfc_linalg.F90`` (LAPACK wrappers).
+
+The equilibrium constant that drives the law of mass action is derived
+from partition functions via microreversibility (see :ref:`thermo_keq`)
+or from Gibbs free energy via the NASA polynomial path [Magin_thesis]_
+(Eq. 2.3).
+
+
+Problem Formulation
+===================
+
+At local thermodynamic equilibrium, the composition is determined by
+three sets of constraints:
+
+1. **Element conservation** — the total abundance of each element is
+   prescribed
+2. **Normalization** — mole (or mass) fractions sum to unity
+3. **Law of mass action** — the equilibrium constant relates species
+   concentrations for each independent reaction
+
+These are combined into a nonlinear system of :math:`n_{\mathrm{comp}}`
+equations in :math:`n_{\mathrm{comp}}` unknowns.
+
+
+Element Conservation
+--------------------
+
+For each element :math:`e = 1, \ldots, n_{\mathrm{elem}}`:
+
+.. math::
+   :label: eq_elem_cons
+
+   \sum_{c=1}^{n_{\mathrm{comp}}} \nu_{ec} \, X_c = X_e^0
+
+where :math:`\nu_{ec}` is the stoichiometric coefficient (number of
+atoms of element :math:`e` in component :math:`c`), :math:`X_c` is the
+mole fraction, and :math:`X_e^0` is the prescribed element mole fraction.
+
+
+Normalization
+-------------
+
+.. math::
+   :label: eq_normalization
+
+   \sum_{c=1}^{n_{\mathrm{comp}}} X_c = 1
+
+
+Law of Mass Action
+------------------
+
+For each linearly independent reaction
+:math:`r = n_{\mathrm{elem}}+1, \ldots, n_{\mathrm{comp}}`:
+
+.. math::
+   :label: eq_mass_action
+
+   \sum_{c=1}^{n_{\mathrm{comp}}} \nu_{rc} \, \ln X_c
+   = \ln K_{\mathrm{eq},r}(T) - \Delta\nu_r \ln\!\left(\frac{p}{p_0}\right)
+
+where :math:`\Delta\nu_r = \sum_c \nu_{rc}` is the net change in moles.
+
+The equilibrium constant is computed from either path:
+
+- **Partition functions** (default):
+
+  .. math::
+     :label: eq_Keq_pf
+
+     \ln K_{\mathrm{eq},r} = \sum_c \nu_{rc}
+     \left[\ln Q_c(T) + \ln m_c + \frac{e_{f,c}}{k_{\mathrm{B}} T}\right]
+     + \Delta\nu_r \ln\!\left(\frac{k_{\mathrm{B}} T}{p}\right)
+
+- **NASA Gibbs free energy** (``--enable-nasa_poly``):
+
+  .. math::
+     :label: eq_Keq_nasa
+
+     \ln K_{\mathrm{eq},r} = -\frac{\Delta G_r^0(T)}{R_u T}
+
+
+Newton--Raphson Solver in Log-Space
+====================================
+
+Following [Bottin1999]_, the system is solved by Newton--Raphson
+iteration in the **logarithms** of the unknowns, which automatically
+enforces positivity of all mole fractions:
+
+.. math::
+
+   \mathbf{x}^{(k+1)} = \mathbf{x}^{(k)} + \delta\mathbf{x}, \qquad
+   \mathbf{J}(\mathbf{x}^{(k)}) \, \delta\mathbf{x} = -\mathbf{f}(\mathbf{x}^{(k)})
+
+where :math:`\mathbf{x} = (\ln X_1, \ldots, \ln X_{n_{\mathrm{comp}}})^T`.
+
+The unknowns are clipped after each iteration to prevent overflow:
+:math:`\ln X_c \in [\ln 10^{-99}, \, 0]`.
+
+
+Schur Complement Reduction
+----------------------------
+
+The Jacobian is partitioned into element and reaction blocks:
+
+.. math::
+   :label: eq_schur
+
+   \begin{bmatrix}
+   \mathbf{J}_{ee} & \mathbf{J}_{er} \\
+   \mathbf{J}_{re} & \mathbf{J}_{rr}
+   \end{bmatrix}
+   \begin{bmatrix}
+   \delta\mathbf{x}_e \\
+   \delta\mathbf{x}_r
+   \end{bmatrix}
+   = -
+   \begin{bmatrix}
+   \mathbf{f}_e \\
+   \mathbf{f}_r
+   \end{bmatrix}
+
+where:
+
+- :math:`\mathbf{J}_{ee}` is :math:`(n_{\mathrm{elem}}+1) \times (n_{\mathrm{elem}}+1)` — element/normalization block
+- :math:`\mathbf{J}_{rr}` is :math:`(n_{\mathrm{comp}} - n_{\mathrm{elem}}) \times (n_{\mathrm{comp}} - n_{\mathrm{elem}})` — reaction block
+
+The **Schur complement** is:
+
+.. math::
+
+   \mathbf{S} = \mathbf{J}_{ee}
+   - \mathbf{J}_{er} \, \mathbf{J}_{rr}^{-1} \, \mathbf{J}_{re}
+
+The solution proceeds:
+
+1. Invert :math:`\mathbf{J}_{rr}` (small, diagonal-dominant)
+2. Form and solve the reduced system :math:`\mathbf{S} \, \delta\mathbf{x}_e = -\tilde{\mathbf{f}}_e`
+3. Back-substitute for :math:`\delta\mathbf{x}_r`
+
+This exploits the block structure and reduces the effective system size
+to :math:`(n_{\mathrm{elem}}+1)`, which is small (e.g., 3 for air: N,
+O, + normalization).
+
+
+Convergence Criterion
+----------------------
+
+Convergence is declared when:
+
+.. math::
+   :label: eq_convergence
+
+   \log_{10} \left\| \sqrt{\frac{1}{n_{\mathrm{comp}}}
+   \sum_c \left(\frac{X_c^{(k+1)} - X_c^{(k)}}{X_c^{(k+1)}}\right)^2}
+   \right\| < -12
+
+The maximum number of iterations is 100. For well-conditioned problems,
+convergence is typically achieved in 3--5 iterations.
+
+
+.. _equil_debye:
+
+Debye--Hückel Corrections
+==========================
+
+For ionized plasmas, the standard equilibrium solver is extended with
+Debye--Hückel corrections (``thermo_equilibrium_comp_dh.F90``) that
+account for:
+
+
+Coulomb Chemical Potential
+---------------------------
+
+The right-hand side of the law of mass action is modified:
+
+.. math::
+
+   \text{rhs}_r^{\mathrm{DH}} = \text{rhs}_r^{\mathrm{std}}
+   - \frac{1}{k_{\mathrm{B}} T} \sum_c \nu_{rc} \, \mu_c^{\mathrm{Coulomb}}
+
+where :math:`\mu_c^{\mathrm{Coulomb}}` is the Coulomb chemical potential
+from the Debye--Hückel theory.
+
+
+Debye Screening
+----------------
+
+The Debye length:
+
+.. math::
+
+   \lambda_D = \sqrt{\frac{\varepsilon_0 k_{\mathrm{B}} T_e}
+   {n_e e^2 + \sum_{c \in \mathrm{ions}} Z_c^2 n_c e^2}}
+
+The effective number density in the DH-corrected equation of state
+differs from the ideal gas value.
+
+
+Ionization Potential Lowering (Griem's Criterion)
+--------------------------------------------------
+
+The number of electronic levels included in the partition function is
+**truncated** based on Griem's criterion: only levels whose binding
+energy exceeds the Coulomb interaction energy are retained. This
+prevents divergence of the partition function at high temperatures.
+
+The truncation is applied iteratively at each Newton step via
+``update_nb_el_levels_DH()``, since the Debye length depends on the
+composition which is being solved for.
+
+
+Coulomb Pressure and Energy
+----------------------------
+
+The equation of state includes Coulomb corrections:
+
+.. math::
+
+   p = p_{\mathrm{ideal}} + p_{\mathrm{Coulomb}}, \qquad
+   e = e_{\mathrm{ideal}} + e_{\mathrm{Coulomb}}
+
+These corrections also affect the adiabatic exponents
+:math:`\Gamma_1, \Gamma_2, \Gamma_3`.
+
+.. note::
+
+   The DH-corrected solver uses a stricter convergence threshold
+   (:math:`10^{-14}`) and additional clipping (:math:`\ln X > -228`)
+   for numerical stability with strongly ionized plasmas.
+
+
+.. _equil_gfc:
+
+Gibbs Function Continuation (GFC) Solver
+==========================================
+
+The GFC solver in PLATO implements the **multiphase Gibbs function
+continuation** algorithm of [ScogginsMagin2015]_, with two
+PLATO-specific extensions for robustness at low temperature (described
+in :ref:`equil_gfc_plato_extensions`).
+
+
+Motivation
+----------
+
+The difficulty in solving the equilibrium system
+:eq:`eq_elem_cons`--:eq:`eq_mass_action` by Newton--Raphson is that the
+system Jacobian can become near-singular when the equilibrium
+composition lies close to the boundary of the feasible region defined
+by the constraints, or when condensed phases appear and disappear. In
+such situations the Newton initial-guess proximity condition cannot be
+satisfied in practice, because the condition number of the Jacobian
+diverges as the matrix approaches singularity [ScogginsMagin2015]_.
+
+GFC avoids this failure mode by reformulating the static equilibrium
+problem as an **initial-value problem** in a continuation parameter
+:math:`s \in [0, 1]`, which is integrated from a cheap, approximate
+starting composition to the true equilibrium. The integration is
+globally convergent for any well-posed set of constraints.
+
+
+Element Potential Equations
+---------------------------
+
+The GFC derivation starts from the Lagrangian of the Gibbs free energy
+minimization problem subject to the linear constraints
+:eq:`eq_elem_cons`. Introducing Lagrange multipliers :math:`\lambda_e`
+(one per element) and setting the gradient of the Lagrangian to zero
+yields the **element potential equations** [ScogginsMagin2015]_
+(Eq. 15):
+
+.. math::
+   :label: eq_epe
+
+   N_c = \bar{N}_{p_c} \exp\!\left(
+      -\tilde{g}_c + \sum_{e=1}^{n_{\mathrm{elem}}} \lambda_e \nu_{ec}
+   \right),
+   \qquad c = 1, \dots, n_{\mathrm{comp}}
+
+where :math:`N_c` is the number of moles of component :math:`c`,
+:math:`\bar{N}_{p_c}` is the total moles in its phase,
+:math:`\tilde{g}_c(T,p)` is the non-dimensional pure-component Gibbs
+function, and :math:`\lambda_e` are the element potentials. Substituting
+:eq:`eq_epe` into the mass-balance constraints :eq:`eq_elem_cons` yields
+a nonlinear system of size :math:`n_{\mathrm{elem}}` (plus
+:math:`n_{\mathrm{phase}}` phase-mole unknowns in the multiphase case).
+
+
+Continuation Formulation
+------------------------
+
+Rather than solving :eq:`eq_epe` and :eq:`eq_elem_cons` directly by
+Newton's method, GFC introduces an auxiliary Gibbs vector
+:math:`\hat{g}(s)` linear in the continuation parameter
+[ScogginsMagin2015]_ (Eq. 23):
+
+.. math::
+   :label: eq_continuation
+
+   \hat{g}(s) = \hat{g}(0) + s \, [\tilde{g} - \hat{g}(0)],
+   \qquad s \in [0, 1],
+
+where :math:`\hat{g}(0)` is chosen such that an easily-computed
+starting composition :math:`N^{(0)}` satisfies the equilibrium equations
+exactly at :math:`s = 0`. The true equilibrium is reached at
+:math:`s = 1`. Its value is obtained by numerically integrating the
+tangent system
+
+.. math::
+   :label: eq_gfc_ivp
+
+   \hat{x}(1) = \int_0^1 \frac{d\hat{x}}{ds}\, ds + \hat{x}(0),
+
+where :math:`\hat{x}(s)` stacks the element potentials
+:math:`\lambda(s)` and the log-phase-moles :math:`\ln \bar{N}(s)`.
+
+The tangent :math:`d\hat{x}/ds` is determined from the implicit relation
+:math:`dR/ds = 0`, where :math:`R` is the residual of the equilibrium
+equations. Its evaluation requires solving two small least-squares
+problems derived from the element-potential Jacobian; their solutions'
+residuals lie in a null space that guarantees the tangent can be
+computed stably (see [ScogginsMagin2015]_, Section 3.2).
+
+The integration is **globally convergent**: the system matrix whose
+factorization determines :math:`d\hat{x}/ds` is proven to be symmetric
+positive definite with strictly positive eigenvalues for any well-posed
+set of constraints ([ScogginsMagin2015]_, Appendix A). Unlike Newton's
+method, there is no proximity condition on the initial guess.
+
+
+Initialization: Simplex LP
+---------------------------
+
+The GFC starting composition :math:`N^{(0)}` is constructed as a convex
+combination of two compositions obtained by linear programming, both
+implemented in ``thermo_equil_gfc_simplex.F90``:
+
+- The **Min-G** composition,
+
+  .. math::
+
+     N^{\mathrm{Min\text{-}G}} = \arg\min_{N \in \mathcal{B}}
+                                 \, N^\top \tilde{g},
+
+  minimizes the sum of species Gibbs energies subject to the constraints.
+  Its Simplex-algorithm solution approximates the dominant species, but
+  has at most :math:`n_{\mathrm{elem}}` nonzero entries.
+
+- The **Max--Min** composition,
+
+  .. math::
+
+     N^{\mathrm{Max\text{-}Min}} = \arg\max_{N \in \mathcal{B}}
+                                   \, \min_c N_c,
+
+  maximizes the smallest component mole count subject to the same
+  constraints. All components are strictly positive.
+
+PLATO uses the recommended mixing fraction :math:`\alpha = 0.01`
+([ScogginsMagin2015]_ Eq. 28):
+
+.. math::
+   :label: eq_gfc_init
+
+   N^{(0)} = (1 - \alpha) \, N^{\mathrm{Min\text{-}G}}
+           + \alpha \, N^{\mathrm{Max\text{-}Min}},
+
+so that the Min-G estimate dominates while the Max--Min contribution
+regularizes the logarithm in the Gibbs functional.
+
+
+Integration and Phase Handling
+------------------------------
+
+The continuation integral :eq:`eq_gfc_ivp` is evaluated with an adaptive
+forward-Euler step in :math:`s`, with a Newton correction applied at
+each step to drive the residual below tolerance. Step sizes halve on
+Newton failure and double on success, capped at :math:`\Delta s = 1`.
+
+Condensed phases are handled by the vapor-pressure test
+[ScogginsMagin2015]_ (Eq. 47): at :math:`s = 1`, every phase not
+currently in the equilibrium solution is tested for whether its
+inclusion would lower the Gibbs energy. If so, the phase is added via
+the redistribution procedure of [ScogginsMagin2015]_ (Eqs. 48--50), and
+the continuation is restarted. Single-phase gas mixtures — the common
+case in PLATO's hypersonic applications — skip this test.
+
+
+.. _equil_gfc_plato_extensions:
+
+PLATO Extensions to GFC
+-----------------------
+
+PLATO's GFC implementation differs from the reference [ScogginsMagin2015]_
+algorithm (as implemented in the Mutation++ library) in two ways, both
+targeting numerical robustness at low temperature. Both are applied
+post-convergence inside ``unpack_mole_fractions`` and do not modify the
+continuation integration itself.
+
+
+Log-space charge-neutrality projection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For ionized mixtures, global charge neutrality
+
+.. math::
+   :label: eq_charge_neutrality
+
+   \sum_c Z_c N_c = 0
+
+(where :math:`Z_c` is the charge number of component :math:`c`) enters
+the GFC algorithm as one of the linear mass-balance constraints, with
+the electron playing the role of a "charge element." This works
+correctly in aggregate: the total free charge on ions matches the total
+electron count to the tolerance of the solver.
+
+However, the constraint :eq:`eq_charge_neutrality` is a single linear
+relation that admits infinitely many numerical splits between individual
+positive ions and the electron population. At low temperature
+(:math:`T \lesssim 1700` K in air), where the ionization fraction is
+itself at the level of the deep-cold floor :math:`X_c \sim 10^{-50}` or
+smaller, the pseudo-equilibrium path integration can converge to a state
+in which the electron mole fraction :math:`X_{e^-}` and, say, the
+atomic-ion mole fraction :math:`X_{\mathrm{O}^+}` differ by many orders
+of magnitude while :eq:`eq_charge_neutrality` remains satisfied in
+aggregate (the imbalance is absorbed by other ions at the floor). Such
+states are numerically valid solutions of the GFC residual equations
+but are unphysical.
+
+PLATO addresses this by applying a **symmetric projection onto the
+charge-neutrality manifold in log-space** after GFC convergence. The
+projection operates on :math:`\ln X_c` rather than :math:`X_c`, which
+is numerically appropriate because the individual ionic populations
+span many orders of magnitude at low temperature. The projection
+redistributes the small ionic populations so that pairwise charge
+balance is restored to machine precision without perturbing the total
+element moles or the neutral-species mole fractions.
+
+The projection is triggered only when the aggregate charge-balance
+residual exceeds :math:`10^{-2}` of the electron population — well above
+any physically meaningful imbalance but below the level at which the
+imbalance begins to corrupt downstream derivative and transport
+calculations.
+
+
+Post-convergence deep-cold floor
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The pseudo-equilibrium path in GFC can carry component mole fractions to
+values below :math:`10^{-99}`, at which point they are indistinguishable
+from floating-point noise. PLATO applies the same symmetric floor used
+by the Newton solver,
+
+.. math::
+
+   X_c \geq \exp(\texttt{DLOG\_TOL2}) \approx 10^{-99},
+   \qquad \texttt{DLOG\_TOL2} = -228,
+
+post-convergence inside ``unpack_mole_fractions``. This mirrors the
+Newton behavior exactly and ensures that downstream consumers (Gibbs
+derivatives, transport coefficients) see the same numerical floor
+regardless of which solver computed the equilibrium.
+
+
+Solver agreement
+----------------
+
+With the above extensions in place, Newton and GFC are verified against
+each other across all PLATO regression mixtures (air5, air11, ablation
+products, Mars gas) at temperatures from 200 K to 20 000 K. The two
+solvers produce **bit-identical component mole fractions** at every
+tested point, including the low-temperature ionized regime where the
+reference [ScogginsMagin2015]_ algorithm (without the charge-neutrality
+projection) produces imbalanced results.
+
+This agreement is a strong internal consistency check: two independently
+derived numerical methods, starting from different initial compositions
+and following different paths to the solution, converge on the same
+answer to the last bit of double precision. It also establishes that
+the chemical derivatives described in the next chapter
+(:ref:`theory_chemical_derivatives`) can be computed from either
+solver's equilibrium state without affecting the numerical result.
+
+
+When to Use GFC
+---------------
+
+In single-phase hypersonic gas mixtures above a few thousand kelvin,
+Newton and GFC produce bit-identical results and Newton is faster. GFC
+should be selected when:
+
+- the mixture includes **condensed phases** (ablation products,
+  pyrolysis gases, soot);
+- **generalized linear constraints** beyond mass balance are imposed
+  (for example, constraints on total moles or on bond counts);
+- **Newton fails to converge** on a stiff mixture near a phase
+  transition;
+- an **ionized mixture at low temperature** is being computed, where
+  the charge-neutrality projection ensures physical symmetry between
+  electron and ion populations.
+
+GFC is selected with the ``--solver gfc`` flag on the ``plato_equil``
+CLI, or programmatically through the ``method`` argument of the
+equilibrium interface.
+
+
+Public API
+==========
+
+.. code-block:: fortran
+
+   ! Mole fraction form (C-bound)
+   call get_eq_composition_mole(p, T, Xc, Xi, flag)
+
+   ! Mass fraction form (C-bound)
+   call get_eq_composition_mass(rho, T, yc, yi, flag)
+
+   ! Equilibrium gamma and sound speed
+   call get_eq_gamma_sound_speed(p, T, rho, yi, gamma, cf)
+
+**Arguments:**
+
+- ``p`` — pressure [Pa]
+- ``T`` — temperature [K]
+- ``Xc(nb_comp)`` — output component mole fractions
+- ``Xi(nb_species)`` — output species mole fractions (includes trace
+  species)
+- ``flag`` — convergence flag (0 = success)
+
+
+.. rubric:: References
+
+.. [Bottin1999] B. Bottin, D. Vanden Abeele, M. Carbonaro, G. Degrez,
+   and G.S.R. Sarma, "Thermodynamic and Transport Properties for
+   Inductive Plasma Modeling," *J. Thermophysics and Heat Transfer*,
+   Vol. 13, No. 3, pp. 343--350, 1999.
+
+.. [Griem1962] H.R. Griem, "High-Density Corrections in Plasma
+   Spectroscopy," *Physical Review*, Vol. 128, No. 3, pp. 997--1003,
+   1962.
+
+.. [Magin_thesis] T.E. Magin, "A Model for Inductive Plasma Wind
+   Tunnels," PhD Thesis, Université Libre de Bruxelles, 2004.
+
+.. [ScogginsMagin2015] J.B. Scoggins and T.E. Magin, "Gibbs function
+   continuation for linearly constrained multiphase equilibria,"
+   *Combustion and Flame*, Vol. 162, No. 12, pp. 4514--4522, 2015.
+   DOI: `10.1016/j.combustflame.2015.08.027
+   <https://doi.org/10.1016/j.combustflame.2015.08.027>`_

@@ -1,0 +1,488 @@
+.. _theory_kinetics:
+
+=================
+Chemical Kinetics
+=================
+
+This chapter describes how PLATO computes chemical source terms (mass
+production rates and energy exchange), the rate coefficient models, and the
+analytical Jacobian. The presentation follows [Munafo_thesis]_ (Chapter 2)
+for the state-to-state formulation, [Munafo_thesis]_ (Chapter 3) for the
+multi-temperature and coarse-grained models, and [MunafoPanesi2025]_ for the
+complete implementation. The code resides in ``src/kinetics/`` (22 files).
+
+
+.. _kinetics_rate:
+
+Rate Coefficients
+=================
+
+Forward Rate: Modified Arrhenius Law
+-------------------------------------
+
+All forward rate coefficients in PLATO use the modified Arrhenius form:
+
+.. math::
+   :label: th_eq_arrhenius
+
+   k_f(T) = A \, T^n \exp\!\left(-\frac{E_a}{k_{\mathrm{B}} T}\right)
+   = A \exp\!\left(n \ln T - \frac{\theta_a}{T}\right)
+
+where:
+
+- :math:`A` is the pre-exponential factor
+- :math:`n` is the temperature exponent
+- :math:`\theta_a = E_a / k_{\mathrm{B}}` is the activation temperature (K)
+
+The three parameters :math:`(A, n, \theta_a)` are read from the kinetics
+database files in ``database/kinetics/``.
+
+
+Activation Temperature for Multi-Temperature Models
+-----------------------------------------------------
+
+For dissociation reactions in the multi-temperature (Park) model, the
+activation temperature uses a **geometric average**:
+
+.. math::
+   :label: eq_park_T
+
+   T_{T_v} = T_h^{1-\alpha} \, T_v^{\alpha}
+
+where :math:`\alpha` is the Park parameter (typically 0.3--0.5). This appears
+in reaction types ``Dh_cat_mt`` (ID 2).
+
+The temperature derivative is:
+
+.. math::
+
+   \frac{\partial T_{T_v}}{\partial T_h} = (1-\alpha) \frac{T_{T_v}}{T_h},
+   \qquad
+   \frac{\partial T_{T_v}}{\partial T_v} = \alpha \frac{T_{T_v}}{T_v}
+
+Source: ``src/kinetics/kinetics_rate.F90``.
+
+
+Backward Rate: Microreversibility
+-----------------------------------
+
+Backward rate coefficients are **never** read from the database. They are
+always computed from the **principle of detailed balance**
+(microreversibility): at equilibrium, every microscopic process is exactly
+balanced by its reverse. This fundamental constraint relates forward and
+backward rates [Munafo_thesis]_ (Eqs. 2.80--2.81).
+
+The macroscopic backward rate is:
+
+.. math::
+   :label: eq_kb
+
+   k_b(T) = \frac{k_f(T)}{K_{\mathrm{eq}}(T)}
+
+**Derivation from microreversibility.** Consider a state-specific
+dissociation reaction :math:`\mathrm{AB}(i) + \mathrm{M} \to \mathrm{A} + \mathrm{B} + \mathrm{M}`.
+At the microscopic level, detailed balance requires [Munafo_thesis]_ (Eq.
+2.80):
+
+.. math::
+
+   \frac{k_i^{\mathrm{rec}}}{k_i^{\mathrm{dis}}}
+   = \frac{g_i \, Q_{\mathrm{AB}}^{\mathrm{tra}}}
+   {g_{\mathrm{A}} \, Q_{\mathrm{A}}^{\mathrm{tra}}
+   \cdot g_{\mathrm{B}} \, Q_{\mathrm{B}}^{\mathrm{tra}}}
+   \exp\!\left(\frac{E_{\mathrm{A}} + E_{\mathrm{B}} - E_i}{k_{\mathrm{B}} T}\right)
+
+Summing over all internal levels *i* with Boltzmann weights yields the
+macroscopic equilibrium constant [Munafo_thesis]_ (Eq. 3.48):
+
+.. math::
+   :label: eq_Keq_Q
+
+   K_{\mathrm{eq}}(T) =
+   \frac{Q_{\mathrm{AB}}^{\mathrm{tra}} \, Q_{\mathrm{AB}}^{\mathrm{int}}}
+   {Q_{\mathrm{A}}^{\mathrm{tra}} \, Q_{\mathrm{B}}^{\mathrm{tra}}}
+   \exp\!\left(\frac{E_{\mathrm{A}} + E_{\mathrm{B}}}{k_{\mathrm{B}} T}\right)
+
+For a general reaction, the equilibrium constant is computed as (see also
+:ref:`thermo_keq`):
+
+.. math::
+
+   \ln K_{\mathrm{eq}} = \sum_c \nu_c
+   \left[\ln Q_c^{\mathrm{tra}} + \ln Q_c^{\mathrm{int}}
+   + \ln m_c - \frac{e_{f,c}}{R_c T}\right]
+   + \Delta\nu \ln\!\left(\frac{k_{\mathrm{B}} T}{p}\right)
+
+**Alternative: Gibbs free energy path.** When NASA polynomials are enabled
+[Magin_thesis]_ (Eq. 2.3):
+
+.. math::
+   :label: th_eq_Keq_gibbs_kin
+
+   K_{\mathrm{eq}} = \exp\!\left(
+   -\frac{\Delta G^0(T)}{R_u T} \right)
+
+Both paths yield the same equilibrium constant; see :ref:`ex07_thermo` for
+numerical verification.
+
+.. note::
+
+   Enforcing microreversibility ensures **thermodynamic consistency**: the
+   system always relaxes toward the correct equilibrium. Using independently
+   fitted forward and backward rates can violate the second law and produce
+   spurious behavior.
+
+Source: ``src/kinetics/kinetics_rate.F90``.
+
+
+.. _kinetics_reactions:
+
+Reaction Process Types
+======================
+
+PLATO implements 16 gas-phase reaction process types. Each type specifies the
+collision partners, the governing temperature, and the stoichiometry:
+
+.. list-table::
+   :widths: 5 12 35 10
+   :header-rows: 1
+
+   * - ID
+     - Symbol
+     - Process
+     - Temperature
+   * - 1
+     - ``Dh_cat_sts``
+     - Dissociation by heavy impact (StS): AB(i) + M :math:`\rightleftharpoons` A(j) + B(k) + M
+     - :math:`T_h`
+   * - 2
+     - ``Dh_cat_mt``
+     - Dissociation by heavy impact (MT): same, Park :math:`T_{T_v}`
+     - :math:`T_{T_v}`
+   * - 3
+     - ``Dh``
+     - Dissociation by specific heavy partner: AB(i) + M(j) :math:`\rightleftharpoons` A(k) + B(l) + M(j')
+     - :math:`T_h`
+   * - 4
+     - ``De``
+     - Dissociation by electron impact: AB(i) + e\ :sup:`-` :math:`\rightleftharpoons` A(j) + B(k) + e\ :sup:`-`
+     - :math:`T_e`
+   * - 5
+     - ``PD``
+     - Predissociation (tunneling): AB(i) :math:`\to` A(j) + B(k)
+     - :math:`T_h`
+   * - 6
+     - ``EXh``
+     - Excitation by heavy impact: A(i) + M :math:`\rightleftharpoons` A*(j) + M
+     - :math:`T_h`
+   * - 7
+     - ``EXC``
+     - Exchange / combined excitation: A(i) + B(j) :math:`\rightleftharpoons` C(k) + D(l)
+     - :math:`T_h`
+   * - 8
+     - ``EXe``
+     - Excitation by electron impact: A(i) + e\ :sup:`-` :math:`\rightleftharpoons` A*(j) + e\ :sup:`-`
+     - :math:`T_e`
+   * - 9
+     - ``Ie``
+     - Ionization by electron: A(i) + e\ :sup:`-` :math:`\rightleftharpoons` A\ :sup:`+`\(j) + 2e\ :sup:`-`
+     - :math:`T_e`
+   * - 10
+     - ``Ih``
+     - Ionization by heavy: A(i) + B(j) :math:`\rightleftharpoons` C(k) + D(l) + e\ :sup:`-`
+     - :math:`T_h`
+   * - 11
+     - ``AI``
+     - Associative ionization: A(i) + B(j) :math:`\rightleftharpoons` AB\ :sup:`+`\(k) + e\ :sup:`-`
+     - :math:`T_h`
+   * - 12
+     - ``PI``
+     - Photoionization
+     - ---
+   * - 13
+     - ``DIe``
+     - Dissociative ionization: AB(i) + e\ :sup:`-` :math:`\rightleftharpoons` B(j) + C(k) + 2e\ :sup:`-`
+     - :math:`T_e`
+   * - 14
+     - ``Rh_cat``
+     - Particle/charge exchange (Zel'dovich): A(i) + B(j) + M :math:`\rightleftharpoons` AB(k) + M
+     - :math:`T_h`
+   * - 15
+     - ``line_AE``
+     - Line absorption/emission: A(i) + h\ :math:`\nu` :math:`\rightleftharpoons` A*(j)
+     - ---
+   * - 16
+     - ``RR``
+     - Radiative recombination: A\ :sup:`+`\(i) + e\ :sup:`-` :math:`\to` A(j) + h\ :math:`\nu`
+     - :math:`T_e`
+
+
+.. _kinetics_source:
+
+Mass Production Rates
+=====================
+
+The mass production rate of species *s* is:
+
+.. math::
+   :label: eq_omega_s
+
+   \dot{\omega}_s = m_s \sum_{r=1}^{N_r}
+   \left( \nu_{s,r}^{\prime\prime} - \nu_{s,r}^{\prime} \right)
+   \left(
+   k_{f,r} \prod_{i} n_i^{\nu_{i,r}^{\prime}}
+   - k_{b,r} \prod_{j} n_j^{\nu_{j,r}^{\prime\prime}}
+   \right)
+
+where :math:`\nu^{\prime}` and :math:`\nu^{\prime\prime}` are the reactant
+and product stoichiometric coefficients, and :math:`m_s` converts from
+number to mass rates.
+
+For catalyzed reactions (types 1, 2, 6, 14) involving a third body M, the
+production term includes the total number density of collision partners:
+
+.. math::
+
+   \dot{n}_{\mathrm{prod}} = n_M \left(
+   n_i \, k_f - k_b \, n_j \, n_k \right)
+
+where :math:`n_M = \sum_s n_s` (or a weighted sum with specified efficiencies).
+
+
+Source Term Computation Pipeline
+---------------------------------
+
+The source term evaluation in ``get_source()`` proceeds as follows:
+
+1. Convert partial densities to number densities: :math:`n_i = \rho_i / m_i`
+2. Clamp temperatures (enforce positivity)
+3. Compute forward rate coefficients :math:`k_f` via :eq:`th_eq_arrhenius`
+4. Compute backward rate coefficients :math:`k_b` via :eq:`eq_kb`
+5. Loop over 16 reaction categories, accumulate production terms
+6. Convert to mass rates: :math:`\dot{\omega}_s = m_s \, \dot{n}_s`
+7. Add energy exchange terms (:ref:`kinetics_transfer`)
+
+**Output:** ``omega(1:nb_sp)`` = mass production rates [kg/m\ :sup:`3`/s],
+``omega(nb_sp+nb_dim+1:...)`` = energy exchange rates [W/m\ :sup:`3`].
+
+Source: ``src/kinetics/kinetics_source_mass.F90``.
+
+
+.. _kinetics_transfer:
+
+Energy Exchange Terms
+=====================
+
+PLATO computes six energy transfer mechanisms that couple the different
+temperature equations.
+
+
+Vibration--Translation (VT) Relaxation
+---------------------------------------
+
+The Landau--Teller model describes VT relaxation as exponential
+approach to translational equilibrium [Munafo_thesis]_ (Eqs. 3.40--3.41):
+
+.. math::
+   :label: eq_omega_vt
+
+   \Omega_{\mathrm{VT}} = \sum_{m \in \mathrm{mol}}
+   \rho_m \frac{e_m^{\mathrm{vib}}(T_h) - e_m^{\mathrm{vib}}(T_v)}
+   {\tau_{\mathrm{VT},m}}
+
+Note the sign convention: :math:`\Omega_{\mathrm{VT}} > 0` when
+:math:`T_h > T_v`, meaning energy flows **from** translation **to**
+vibration.
+
+The mixture-averaged relaxation time uses Millikan--White mixing:
+
+.. math::
+
+   p \, \tau_{\mathrm{VT},m} = \left(\sum_h \frac{X_h}{p \, \tau_{h\text{-}m}}\right)^{-1}
+
+where each pair relaxation time :math:`\tau_{h\text{-}m}` is given by the
+**Millikan--White** correlation [MillikanWhite1963]_:
+
+.. math::
+
+   p \, \tau_{h\text{-}m} = \exp\!\left[
+   a \left(T^{-1/3} - b\right) - 18.42 \right] \quad [\mathrm{atm \cdot s}]
+
+with :math:`a = 1.16 \times 10^{-3} \mu_{hm}^{1/2} \theta_{\mathrm{vib}}^{4/3}`
+and :math:`b = 0.015 \mu_{hm}^{1/4}`. A **Park high-temperature correction**
+[Park1989]_ is added at :math:`T > 8000` K to prevent unphysical divergence.
+
+Source: ``src/kinetics/transfer_vt.F90``.
+
+
+Vibration--Electron (VE) Exchange
+----------------------------------
+
+For electron-impact vibrational excitation (primarily N\ :sub:`2`--e\ :sup:`-`):
+
+.. math::
+   :label: eq_omega_ve
+
+   \Omega_{\mathrm{VE}} = \sum_{m}
+   \frac{\rho_m \left[ e_m^{\mathrm{vib}}(T_e) - e_m^{\mathrm{vib}}(T_v) \right]}
+   {\tau_{\mathrm{VE},m}}
+
+The relaxation time :math:`\tau_{\mathrm{VE}}` is computed from piecewise
+polynomial fits in :math:`\log_{10} T_e`.
+
+Source: ``src/kinetics/transfer_ve.F90``.
+
+
+Translation--Electron (TE) Elastic Exchange
+--------------------------------------------
+
+Elastic collisions between electrons and heavy particles:
+
+.. math::
+   :label: th_eq_omega_te
+
+   \Omega_{\mathrm{TE}} = \frac{3}{2} k_{\mathrm{B}} \, n_e
+   \left(T_h - T_e\right) \nu_{eh}
+
+where :math:`\nu_{eh}` is the electron--heavy particle collision frequency.
+
+Source: ``src/kinetics/transfer_te.F90``.
+
+
+Chemistry--Vibration (CV) Coupling
+-----------------------------------
+
+The vibrational energy added or removed by chemical reactions:
+
+.. math::
+   :label: eq_omega_cv
+
+   \Omega_{\mathrm{CV}} = \sum_{m \in \mathrm{mol}} \sum_r
+   \dot{\omega}_{m,r} \, e_m^{\mathrm{vib}}(T_v)
+
+This is evaluated *after* the chemical source terms are computed.
+
+Source: ``src/kinetics/transfer_cv.F90``.
+
+
+Chemistry--Electronic (CEL) Coupling
+--------------------------------------
+
+The electronic energy carried by chemical reactions:
+
+.. math::
+   :label: eq_omega_cel
+
+   \Omega_{\mathrm{CEL}} = \sum_s \sum_r
+   \dot{\omega}_{s,r} \, e_s^{\mathrm{el}}(T_e)
+
+Source: ``src/kinetics/transfer_cel.F90``.
+
+
+Free-Free Bremsstrahlung (FF)
+------------------------------
+
+Energy loss by electron Bremsstrahlung radiation (Kramers formula with
+Gaunt factor = 1):
+
+.. math::
+   :label: eq_omega_ff
+
+   \Omega_{\mathrm{ff}} = C_{\mathrm{ff}}
+   \left(\sum_{c \in \mathrm{ions}} Z_c \, n_c\right)
+   n_e \sqrt{T_e}
+
+where :math:`Z_c` is the charge number and :math:`C_{\mathrm{ff}}` is a
+constant from the Kramers cross-section.
+
+Source: ``src/kinetics/transfer_rad_ff.F90``.
+
+
+.. _kinetics_jacobian:
+
+Analytical Jacobian
+===================
+
+PLATO provides the full analytical Jacobian
+:math:`\partial(\dot{\omega}, \Omega) / \partial(\rho_i, T_k)` for implicit
+time integration. The Jacobian matrix has dimensions:
+
+.. math::
+
+   \mathbf{J} \in \mathbb{R}^{(n_s + n_{\mathrm{dim}} + n_T)
+   \times (n_s + n_{\mathrm{dim}} + n_T)}
+
+where :math:`n_s` is the number of species, :math:`n_{\mathrm{dim}}` the
+spatial dimension, and :math:`n_T` the number of temperatures.
+
+**Column ordering:**
+
+- Columns :math:`1` to :math:`n_s`: partial densities :math:`\rho_i`
+- Columns :math:`n_s+1` to :math:`n_s+n_{\mathrm{dim}}`: spatial coordinates
+- Remaining columns: temperatures :math:`T_h, T_v, T_e, \ldots`
+
+**Key derivative terms** (example for catalyzed dissociation, type 1):
+
+.. math::
+
+   \frac{\partial \dot{n}}{\partial n_i} = n_M \, k_f, \qquad
+   \frac{\partial \dot{n}}{\partial n_j} = -k_b \, n_M \, n_k, \qquad
+   \frac{\partial \dot{n}}{\partial T} =
+   \left(\frac{n}{T} + \frac{\theta_a}{T^2}\right) n_M \left(
+   n_i \, k_f - k_b \, n_j \, n_k \right)
+
+The chain rule relates partial-density derivatives to number-density
+derivatives:
+
+.. math::
+
+   \frac{\partial}{\partial \rho_i} = \frac{1}{m_i}
+   \frac{\partial}{\partial n_i}
+
+For the Park activation temperature :eq:`eq_park_T`, additional chain-rule
+terms propagate :math:`\partial T_{T_v}/\partial T_h` and
+:math:`\partial T_{T_v}/\partial T_v` into the Jacobian.
+
+Energy transfer Jacobians (VT, VE, TE, CV, CEL, FF) are included in the
+same matrix.
+
+A **mass-only** Jacobian variant (:math:`n_s \times n_s`) is available for
+simplified time integration.
+
+Source: ``src/kinetics/kinetics_source_jac.F90``.
+
+
+.. _kinetics_cg:
+
+Coarse-Grained Kinetics
+========================
+
+For coarse-grained (CG) models, rate coefficients come from pre-tabulated
+binary lookup tables with **bicubic interpolation** rather than Arrhenius
+expressions. The Jacobian is computed **numerically** by finite differences
+(not analytically). Tables reside in ``database/kinetics/{ng}g/``.
+
+Source: ``src/kinetics/kinetics_group.F90``.
+
+
+.. rubric:: References
+
+.. [MunafoPanesi2025] A. Munafò and M. Panesi, "PLATO: a Library for the
+   Thermodynamics, Transport, and Kinetics of Multicomponent Gases and
+   Plasmas," *J. Thermophysics and Heat Transfer*, Vol. 39, No. 4, 2025.
+
+.. [Munafo_thesis] A. Munafò, "Multi-Scale Models and Computational Methods
+   for Aerothermodynamics," PhD Thesis, Ecole Centrale Paris, 2014.
+
+.. [Magin_thesis] T.E. Magin, "A Model for Inductive Plasma Wind Tunnels,"
+   PhD Thesis, Université Libre de Bruxelles, 2004.
+
+.. [Park1989] C. Park, "Nonequilibrium Hypersonic Aerothermodynamics,"
+   Wiley, 1989.
+
+.. [MillikanWhite1963] R.C. Millikan and D.R. White, "Systematics of
+   Vibrational Relaxation," *J. Chemical Physics*, Vol. 39, No. 12, 1963.
+
+.. [LandauTeller1936] L. Landau and E. Teller, "Zur Theorie der
+   Schalldispersion," *Physik. Zeitschrift der Sowjetunion*, Vol. 10,
+   No. 34, 1936.

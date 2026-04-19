@@ -1,0 +1,198 @@
+.. _ex08_validation:
+
+==============================================================
+Example 8: Validation Against the JTHT Reference Paper
+==============================================================
+
+This example reproduces the key validation figures from the PLATO reference
+paper:
+
+   Munafo, A., and Panesi, M., "PLATO: a Library for the Thermodynamics,
+   Transport, and Kinetics of Multicomponent Gases and Plasmas,"
+   *Journal of Thermophysics and Heat Transfer*, Vol. 39, No. 4, 2025.
+   DOI: `10.2514/1.T7097 <https://doi.org/10.2514/1.T7097>`_
+
+Five validation cases are presented, covering equilibrium composition,
+enthalpy decomposition, interaction potentials, thermal conductivity, and
+viscosity.
+
+
+Equilibrium Composition
+=======================
+
+The equilibrium mole fractions of two representative mixtures are computed
+over 300--15000 K at 1 atm.
+
+**Left panel**: 11-species air (N\ :sub:`2`, O\ :sub:`2`, NO, N, O, N\ :sup:`+`,
+O\ :sup:`+`, NO\ :sup:`+`, N\ :sub:`2`\ :sup:`+`, O\ :sub:`2`\ :sup:`+`,
+e\ :sup:`-`). Three regimes are visible: the molecular regime below 2000 K
+where N\ :sub:`2` and O\ :sub:`2` dominate; the dissociation regime from
+2000--8000 K where O\ :sub:`2` dissociates first, followed by N\ :sub:`2`;
+and the ionization regime above 8000 K where atomic ions and electrons appear.
+
+**Right panel**: 8-species CO\ :sub:`2` mixture (CO\ :sub:`2`, CO, O, C,
+O\ :sub:`2`, C\ :sup:`+`, O\ :sup:`+`, e\ :sup:`-`). CO\ :sub:`2`
+decomposes into CO and O above 2000 K, with further dissociation into
+atomic species above 4000 K.
+
+.. code-block:: bash
+
+   # Air-11
+   plato_equil -T 300:100:15000 -m 1 -s 1 \
+       --db-path $DATABASE air11 > air11_composition.dat
+
+   # CO2-8
+   plato_equil -T 300:100:15000 -m 1 -s 1 \
+       --db-path $DATABASE co2_8 > co2_8_composition.dat
+
+.. figure:: figures/validation_composition.png
+   :width: 100%
+   :align: center
+
+   Equilibrium mole fractions at 1 atm for the 11-species air mixture (left)
+   and the 8-species carbon dioxide mixture (right). Solid lines: neutral
+   species; dashed lines: ions and electrons. Compare with Fig. 5 in the
+   JTHT paper.
+
+
+Enthalpy Decomposition
+======================
+
+The mixture enthalpy is decomposed into translational, rotational,
+vibrational, electronic, and formation contributions. At LTE, the mass
+fractions are determined by equilibrium composition, and each mode
+contributes:
+
+- **Translational** :math:`h_{\rm tr} = \sum_i y_i \frac{5}{2} R_i T`
+- **Rotational** :math:`h_{\rm rot} = \sum_i y_i R_i T` (linear molecules only)
+- **Vibrational** :math:`h_{\rm vib} = \sum_i y_i R_i \theta_{v,i} / [\exp(\theta_{v,i}/T) - 1]`
+- **Electronic**: from Boltzmann-weighted electronic level populations
+- **Formation**: from species formation energies at 0 K
+
+The left panel shows the full-scale enthalpy, dominated by formation energy
+at high temperatures (dissociation and ionization are endothermic). The right
+panel zooms to 0--5 MJ/kg to resolve the individual mode contributions.
+
+.. code-block:: bash
+
+   plato_equil -T 300:100:15000 -m 1,13 -s 1,2,5,6 \
+       --db-path $DATABASE air11 > air11_enthalpy.dat
+
+.. figure:: figures/validation_enthalpy.png
+   :width: 100%
+   :align: center
+
+   Enthalpy decomposition for the 11-species air mixture at 1 atm. Left: full
+   scale showing dominance of formation enthalpy. Right: zoomed view
+   (0--5 MJ/kg) resolving translational, rotational, vibrational, and
+   electronic contributions. Compare with Fig. 6 in the JTHT paper.
+
+
+Interaction Potential
+=====================
+
+PLATO implements two families of interaction potentials for computing
+heavy-particle collision integrals:
+
+1. The classical **Lennard-Jones (12-6)** potential:
+
+   .. math::
+
+      \varphi(r) = 4\varepsilon \left[\left(\frac{\sigma}{r}\right)^{12}
+      - \left(\frac{\sigma}{r}\right)^{6}\right]
+
+2. The **phenomenological (ILJ)** potential of Pirani et al. (2007):
+
+   .. math::
+
+      \frac{\varphi(r)}{\varepsilon} = \frac{6}{n(x)-6}\,x^{-n(x)}
+      - \frac{n(x)}{n(x)-6}\,x^{-6}, \quad n(x) = \beta + 4x^2
+
+   where :math:`x = r/r_e` and :math:`\beta` is a species-dependent parameter
+   (typically 6--9). The ILJ potential has the same well depth and equilibrium
+   distance as the LJ potential but differs in the repulsive wall (softer at
+   short range) and attractive tail (steeper long-range decay).
+
+Three regions are identified: **I** (repulsive core), **II** (potential well),
+and **III** (long-range attraction).
+
+.. figure:: figures/validation_potential.png
+   :width: 60%
+   :align: center
+
+   Comparison of the Lennard-Jones (12-6) and phenomenological (ILJ)
+   interaction potentials. Top: log scale showing the repulsive wall.
+   Bottom: linear scale showing the well depth and the three interaction
+   regions. Compare with Fig. 4 in the JTHT paper.
+
+
+Thermal Conductivity
+====================
+
+The total thermal conductivity of the 11-species air mixture at 1 atm is
+compared with literature data. The thermal conductivity includes four
+contributions:
+
+- Heavy-particle translational (:math:`\lambda_h`)
+- Electron translational (:math:`\lambda_e`)
+- Internal (rotational + vibrational, :math:`\lambda_{\rm int}`)
+- Reactive (:math:`\lambda_{\rm reac}`)
+
+The reactive contribution arises from species diffusion driven by
+composition gradients and is significant in the dissociation regime
+(5000--8000 K). Literature data from Ahtye (1972), Yos (1963), and
+Capitelli et al. are shown for comparison.
+
+.. code-block:: bash
+
+   plato_equil -T 300:100:15000 -m 1,17,18 \
+       --db-path $DATABASE air11 > air11_transport.dat
+
+.. figure:: figures/validation_conductivity.png
+   :width: 70%
+   :align: center
+
+   Total thermal conductivity of the 11-species air mixture at 1 atm.
+   Solid line: PLATO (standard collision integrals). Dashed line: PLATO
+   (electron-shielded collision integrals). Markers: literature data.
+   Compare with Fig. 2 in the JTHT paper.
+
+
+Viscosity
+=========
+
+The dynamic viscosity of the 8-species CO\ :sub:`2` mixture at 1 atm is
+compared with literature data. Viscosity increases with temperature due to
+increased molecular velocity, reaches a maximum around 10000 K, and then
+decreases as ionization produces lighter species (electrons, atomic ions)
+with smaller collision cross-sections.
+
+.. code-block:: bash
+
+   plato_equil -T 300:100:15000 -m 1,17 \
+       --db-path $DATABASE co2_8 > co2_8_viscosity.dat
+
+.. figure:: figures/validation_viscosity.png
+   :width: 70%
+   :align: center
+
+   Dynamic viscosity of the 8-species carbon dioxide mixture at 1 atm.
+   Solid line: PLATO. Markers: literature data from Capitelli et al.,
+   Yos (1963), and Amdur & Mason. Compare with Fig. 3 in the JTHT paper.
+
+
+Reproducing These Plots
+========================
+
+All plots are generated by Python scripts in ``doc/sphinx/examples/scripts/``:
+
+.. code-block:: bash
+
+   python doc/sphinx/examples/scripts/plot_validation_composition.py
+   python doc/sphinx/examples/scripts/plot_validation_enthalpy.py
+   python doc/sphinx/examples/scripts/plot_validation_potential.py
+   python doc/sphinx/examples/scripts/plot_validation_conductivity.py
+   python doc/sphinx/examples/scripts/plot_validation_viscosity.py
+
+The scripts require ``numpy``, ``matplotlib``, and ``scipy``.
+Output data files are expected in ``data_out/`` at the repository root.

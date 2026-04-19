@@ -1,0 +1,1195 @@
+.. _getting_started:
+
+===============
+Getting Started
+===============
+
+This guide walks you through installing PLATO's dependencies, building the
+library, setting up the database, and running your first computations: air-5
+and air-11 equilibrium composition sweeps and a BOX reactor simulation.
+
+
+.. _prerequisites:
+
+Prerequisites
+=============
+
+Required Packages
+-----------------
+
+PLATO requires a Fortran 2003/2008 compiler, C/C++ compilers, Python 3 (for
+documentation), and either CMake or GNU Autotools for building.
+
+**Ubuntu / Debian:**
+
+.. code-block:: bash
+
+   sudo apt-get update
+   sudo apt-get install -y \
+     gfortran gcc g++ \
+     cmake make \
+     autoconf automake libtool \
+     python3 python3-pip \
+     git
+
+**macOS (Homebrew):**
+
+.. code-block:: bash
+
+   brew install gcc cmake autoconf automake libtool python3 git
+
+.. note::
+
+   On macOS, the system ``gcc`` is actually Clang. Use ``brew install gcc`` to
+   get real GCC with ``gfortran``. The Homebrew GCC is typically available as
+   ``gcc-13`` / ``gfortran-13`` (or whichever version Homebrew installs).
+   Set ``FC=gfortran-13`` at configure/cmake time.
+
+**Cluster (using environment modules):**
+
+.. code-block:: bash
+
+   # Example: newton cluster
+   module load gcc/12.3.0
+   module load cmake/3.27.4
+   module load autotools/latest
+
+**Minimum versions:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 20 55
+
+   * - Tool
+     - Minimum version
+     - Notes
+   * - ``gfortran`` (GCC)
+     - 9.0
+     - Fortran 2003/2008 + submodules required
+   * - ``ifort`` / ``ifx`` (Intel)
+     - 2021.1
+     - Also supported (see Intel build instructions)
+   * - ``gcc`` / ``g++``
+     - 9.0
+     - Needed for C/C++ API wrappers
+   * - ``cmake``
+     - 3.12
+     - Recommended build system
+   * - ``autoconf``
+     - 2.69
+     - Required for Autotools builds only
+   * - ``automake``
+     - 1.12.3
+     - Required for Autotools builds only
+   * - ``libtool``
+     - 2.4
+     - Required for Autotools builds only
+   * - ``python3``
+     - 3.8
+     - Documentation builds only
+   * - ``make``
+     - 3.81
+     - GNU Make
+
+**Verified working configuration:** GCC 11.4, CMake 3.22, autoconf 2.71,
+automake 1.16.5, libtool 2.4.6 on Ubuntu 22.04.
+
+
+.. _optional_deps:
+
+Optional Dependencies
+---------------------
+
+These libraries extend PLATO's capabilities. They are not required for a
+basic build but enable advanced features.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 15 50 20
+
+   * - Library
+     - Recommended version
+     - Purpose
+     - Preprocessor define
+   * - **SUNDIALS** (CVODE)
+     - >= 5.0, tested with 6.6
+     - Stiff ODE integration for CR/StS kinetics. Without it, the built-in
+       LSODE solver (Fortran 77) is used instead.
+     - ``PLATO_HAVE_CVODE``
+   * - **OpenBLAS**
+     - >= 0.3.20
+     - High-performance LAPACK for CVODE's linear solver. Enables
+       LAPACK-dense solver instead of CVODE's plain dense solver.
+     - ``PLATO_HAVE_OBLAS``
+   * - **GSL**
+     - >= 2.7
+     - Cross-section fitting, Arrhenius rate fitting (``apps/fit/``),
+       spectral convolution (``apps/spec/``), Maxwellian-averaged
+       cross-sections (``apps/lpi/``). Without it, the ``src/c/`` GSL-based
+       routines and ``apps/fit/``, ``apps/spec/``, ``apps/lpi/`` are excluded.
+     - ``PLATO_HAVE_GSL``
+
+**Ubuntu install (optional libraries):**
+
+.. code-block:: bash
+
+   # GSL
+   sudo apt-get install -y libgsl-dev
+
+   # OpenBLAS
+   sudo apt-get install -y libopenblas-dev
+
+   # SUNDIALS/CVODE (build from source for best compatibility)
+   wget https://github.com/LLNL/sundials/releases/download/v6.6.0/sundials-6.6.0.tar.gz
+   tar xzf sundials-6.6.0.tar.gz && cd sundials-6.6.0
+   mkdir build && cd build
+   cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/sundials \
+     -DENABLE_OPENMP=OFF -DBUILD_SHARED_LIBS=ON
+   make -j$(nproc) && make install
+   export SUNDIALS_DIR=$HOME/sundials
+
+Verify your tools:
+
+.. code-block:: bash
+
+   gfortran --version
+   gcc --version
+   cmake --version
+   python3 --version
+
+
+.. _building_cmake:
+
+Building PLATO with CMake (Recommended)
+========================================
+
+CMake is the recommended build system for PLATO. It properly declares Fortran
+module dependencies, enabling **parallel builds** (``make -j``) that are
+typically **10--12x faster** than the sequential-only Autotools build.
+
+Step 1: Clone the Repositories
+-------------------------------
+
+.. code-block:: bash
+
+   git clone https://github.com/HERMES-AEROSPACE/plato.git
+   cd plato
+
+   # Clone the database (separate repository)
+   git clone https://github.com/HERMES-AEROSPACE/database.git
+
+Step 2: Configure with CMake
+-----------------------------
+
+.. code-block:: bash
+
+   mkdir build && cd build
+   cmake ..
+
+For a full-featured build with all options:
+
+.. code-block:: bash
+
+   cmake .. \
+     -DCMAKE_Fortran_COMPILER=gfortran \
+     -DCMAKE_C_COMPILER=gcc \
+     -DCMAKE_CXX_COMPILER=g++ \
+     -DCMAKE_INSTALL_PREFIX=$HOME/plato \
+     -DPLATO_ENABLE_NASA_POLY=ON \
+     -DPLATO_ENABLE_TABLE=ON \
+     -DPLATO_ENABLE_CACHE=ON \
+     -DPLATO_CVODE_DIR=$SUNDIALS_DIR \
+     -DPLATO_OBLAS_DIR=$OBLAS_DIR \
+     -DPLATO_GSL_DIR=$GSL_DIR
+
+**With Intel compilers:**
+
+.. code-block:: bash
+
+   cmake .. \
+     -DCMAKE_Fortran_COMPILER=ifx \
+     -DCMAKE_C_COMPILER=icx \
+     -DCMAKE_CXX_COMPILER=icpx \
+     -DPLATO_ENABLE_OPTIM=ON
+
+**On a cluster** (e.g., newton):
+
+.. code-block:: bash
+
+   module load gcc/12.3.0
+   module load cmake/3.27.4
+   module load sundials/6.6.0
+   module load openblas/0.3.24
+   module load gsl/2.7
+
+   mkdir build && cd build
+   cmake .. \
+     -DCMAKE_INSTALL_PREFIX=$HOME/plato \
+     -DPLATO_ENABLE_NASA_POLY=ON \
+     -DPLATO_CVODE_DIR=$SUNDIALS_DIR \
+     -DPLATO_OBLAS_DIR=$OBLAS_DIR \
+     -DPLATO_GSL_DIR=$GSL_DIR
+
+Step 3: Build
+--------------
+
+.. code-block:: bash
+
+   make -j$(nproc)
+
+CMake properly tracks Fortran module dependencies, so parallel builds
+work correctly.
+
+Step 4: Install (Optional)
+---------------------------
+
+.. code-block:: bash
+
+   make install
+
+This installs libraries, Fortran ``.mod`` files, C/C++ headers, and
+executables to the path specified by ``CMAKE_INSTALL_PREFIX``.
+
+Step 5: Build Documentation (Optional)
+----------------------------------------
+
+If Sphinx and Breathe are installed (see ``doc/sphinx/requirements.txt``),
+you can build the HTML documentation from the same build directory:
+
+.. code-block:: bash
+
+   make docs
+
+This runs Doxygen (if installed) to extract C/C++ API documentation, then
+Sphinx to produce the HTML site in ``build/docs/``. Open
+``build/docs/index.html`` in a browser to view.
+
+Step 6: Run Tests
+------------------
+
+After building, verify the library by running the built-in testcases:
+
+.. code-block:: bash
+
+   # From the build directory, run the BOX reactor testcase
+   cd apps/ode
+   ./box testcases/box/box_mt_air5
+
+.. note::
+
+   The testcase input files contain hardcoded database paths from the
+   developer's machine. See :ref:`database_setup` below for how to update
+   them. Alternatively, copy a testcase and edit the ``PATH`` line.
+
+
+Why CMake?
+-----------
+
+- **Parallel builds**: CMake properly declares Fortran module dependencies,
+  so ``make -j$(nproc)`` works correctly. On a 56-core machine, CMake builds
+  complete in ~6 s vs ~72 s for sequential Autotools — roughly **12x faster**.
+- **Out-of-tree builds**: The source tree stays clean. You can maintain
+  multiple build configurations side by side (e.g., ``build-debug/`` and
+  ``build-release/``).
+- **Documentation target**: ``make docs`` builds Sphinx + Doxygen documentation.
+- **Modern tooling**: Better IDE integration, ``compile_commands.json`` export,
+  and standard ``cmake --install`` workflow.
+
+
+CMake Options Reference
+-----------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 38 12 50
+
+   * - Option
+     - Default
+     - Description
+   * - ``-DCMAKE_Fortran_COMPILER=<fc>``
+     -
+     - Fortran compiler (``gfortran``, ``ifx``, ``ifort``)
+   * - ``-DCMAKE_C_COMPILER=<cc>``
+     -
+     - C compiler (``gcc``, ``icx``)
+   * - ``-DCMAKE_CXX_COMPILER=<cxx>``
+     -
+     - C++ compiler (``g++``, ``icpx``)
+   * - ``-DCMAKE_INSTALL_PREFIX=<path>``
+     - ``/usr/local``
+     - Installation directory
+   * - ``-DPLATO_ENABLE_DEBUG=ON``
+     - ``OFF``
+     - Debug mode: ``-O0 -g``, bounds checking, FPE traps, NaN
+       initialization, backtrace
+   * - ``-DPLATO_ENABLE_OPTIM=ON``
+     - ``ON``
+     - Optimized mode: ``-O3`` (ignored if debug is ON)
+   * - ``-DPLATO_ENABLE_OMP=ON``
+     - ``OFF``
+     - OpenMP parallel support for kinetics loops
+   * - ``-DPLATO_ENABLE_TABLE=ON``
+     - ``OFF``
+     - Lookup-table thermodynamics (LTE :math:`\rho`-T tables).
+       Replaces analytic Boltzmann summations with precomputed tables.
+   * - ``-DPLATO_ENABLE_CACHE=ON``
+     - ``OFF``
+     - Pre-cached rate coefficients in binary format
+   * - ``-DPLATO_ENABLE_NASA_POLY=ON``
+     - ``OFF``
+     - Enable NASA 9-coefficient polynomial thermodynamics. Provides
+       entropy and Gibbs free energy (not available with default partition
+       function path). Required for NASA polynomial database files.
+   * - ``-DPLATO_ENABLE_ISOC=ON``
+     - ``ON``
+     - Build ISO-C bindings for C/C++ API
+   * - ``-DPLATO_CVODE_DIR=<path>``
+     -
+     - Path to SUNDIALS/CVODE installation root. Enables CVODE stiff
+       ODE solver for CR/StS kinetics.
+   * - ``-DPLATO_GSL_DIR=<path>``
+     -
+     - Path to GSL installation root. Enables cross-section fitting,
+       Arrhenius fitting, and spectral convolution tools.
+   * - ``-DPLATO_OBLAS_DIR=<path>``
+     -
+     - Path to OpenBLAS installation root. Enables LAPACK-dense
+       linear solver for CVODE.
+
+
+.. _building_autotools:
+
+Building PLATO with Autotools (Legacy)
+=======================================
+
+.. deprecated:: 1.0
+
+   GNU Autotools is the **legacy** build system. **CMake is the recommended
+   build system** (see :ref:`building_cmake` above). Autotools support may be
+   removed in a future release.
+
+.. warning::
+
+   **Parallel builds do NOT work with Autotools.** The Fortran module
+   dependencies are not declared in the Autotools Makefiles, so
+   ``make -j`` causes ``.mod`` file race conditions and **will fail**.
+   Always use sequential ``make`` (no ``-j`` flag). On a 56-core machine,
+   sequential Autotools takes ~72 s vs ~6 s with CMake's parallel build —
+   roughly **12x slower**.
+
+Step 1: Clone the Repositories
+-------------------------------
+
+.. code-block:: bash
+
+   git clone https://github.com/HERMES-AEROSPACE/plato.git
+   cd plato
+   git clone https://github.com/HERMES-AEROSPACE/database.git
+
+Step 2: Bootstrap
+-----------------
+
+.. code-block:: bash
+
+   bash autogen.sh
+
+This generates the ``configure`` script and ``Makefile.in`` from
+``configure.ac`` and ``Makefile.am``.
+
+Step 3: Configure
+-----------------
+
+**Minimal optimized build:**
+
+.. code-block:: bash
+
+   ./configure FC=gfortran F77=gfortran CC=gcc CXX=g++ --enable-optim
+
+**Debug build** (with bounds checking, FPE traps, NaN initialization):
+
+.. code-block:: bash
+
+   ./configure FC=gfortran F77=gfortran CC=gcc CXX=g++ --enable-debug
+
+**Full-featured build:**
+
+.. code-block:: bash
+
+   ./configure FC=gfortran F77=gfortran CC=gcc CXX=g++ --enable-optim \
+     --enable-table --enable-cache --enable-nasa_poly \
+     --with-cvode=$SUNDIALS_DIR --with-oblas=$OBLAS_DIR --with-gsl=$GSL_DIR \
+     --prefix=$PLATO_DIR
+
+**Intel compilers:**
+
+.. code-block:: bash
+
+   ./configure FC=ifx F77=ifx CC=icx CXX=icpx --enable-optim
+
+Step 4: Build
+-------------
+
+.. code-block:: bash
+
+   make
+
+.. warning::
+
+   Do **not** use ``make -j``. Always use sequential ``make``.
+
+Step 5: Install (Optional)
+---------------------------
+
+.. code-block:: bash
+
+   make install
+
+Autotools Configure Options
+----------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 10 55
+
+   * - Option
+     - Default
+     - Description
+   * - ``--enable-debug``
+     - no
+     - Debug: ``-O0 -g``, bounds checking, FPE traps, NaN init, backtrace
+   * - ``--enable-optim``
+     - yes
+     - Optimized: ``-O3`` (GCC) or ``-O3 -fp-model precise`` (Intel).
+       Ignored if ``--enable-debug``.
+   * - ``--enable-omp``
+     - no
+     - OpenMP parallel support
+   * - ``--enable-table``
+     - no
+     - Lookup-table thermodynamics
+   * - ``--enable-cache``
+     - no
+     - Pre-cached rate coefficients
+   * - ``--enable-nasa_poly``
+     - no
+     - NASA 9-coefficient polynomial thermodynamics
+   * - ``--enable-isoc``
+     - yes
+     - ISO-C bindings for C/C++ API
+   * - ``--with-cvode=PATH``
+     -
+     - Path to SUNDIALS/CVODE installation
+   * - ``--with-oblas=PATH``
+     -
+     - Path to OpenBLAS installation
+   * - ``--with-gsl=PATH``
+     -
+     - Path to GSL installation
+   * - ``--prefix=PATH``
+     -
+     - Installation directory
+
+
+.. _verify_build:
+
+Verifying the Build
+===================
+
+After a successful build, you should find the following outputs:
+
+**Libraries** (in ``src/.libs/`` for Autotools, or ``lib/`` for CMake):
+
+- ``libplato.a`` -- static library (~3 MB)
+- ``libplato.so`` -- shared library (~1.7 MB)
+
+**Fortran modules** (in ``mod/``):
+
+- 109 ``.mod`` files (Fortran module interfaces)
+
+**Executables** (in ``apps/`` subdirectories):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 40 30
+
+   * - Executable
+     - Description
+     - Requires
+   * - ``apps/ode/box``
+     - 0D isochoric chemical reactor
+     -
+   * - ``apps/ode/shock``
+     - 1D post-shock relaxation flow
+     -
+   * - ``apps/ode/lagr``
+     - Lagrangian particle through flow field
+     -
+   * - ``apps/ode/gsi``
+     - Gas-surface interaction temperature sweep
+     -
+   * - ``apps/lte/lte_table_rhoT``
+     - LTE lookup table generation
+     -
+   * - ``apps/spec/planck_conv``
+     - Planck spectral convolution
+     - GSL
+   * - ``apps/fit/fit_rate``
+     - Arrhenius rate coefficient fitting
+     - GSL
+   * - ``apps/lpi/lpi_dielec_prop``
+     - Laser-plasma dielectric properties
+     - GSL
+
+**Quick smoke test** -- run the BOX reactor with a built-in testcase:
+
+.. code-block:: bash
+
+   cd apps/ode
+   ./box testcases/box/box_mt_air5
+
+.. note::
+
+   This will fail with a "file not found" error for the database path
+   because the testcase input file contains a hardcoded ``PATH`` pointing
+   to the original developer's machine. See :ref:`database_setup` below for
+   how to fix this.
+
+
+.. _database_setup:
+
+Database Setup
+==============
+
+PLATO reads all physicochemical data from the ``database/`` directory. This
+directory is a **separate git repository** and must be cloned alongside the
+main PLATO source tree.
+
+.. code-block:: text
+
+   database/
+   +-- mixture/      # Mixture definition files (air5, air11, ...)
+   +-- thermo/       # Species thermodynamic data
+   +-- kinetics/     # Reaction mechanism files (modified Arrhenius)
+   +-- transfer/     # Nonequilibrium model info (VT relaxation data)
+   +-- transport/    # Collision integral curve fits (eN, HH files)
+
+The database path is specified in each application input file via the ``PATH``
+parameter. The built-in testcases ship with hardcoded paths from the
+developer's machine, so you must update them.
+
+**Update the database path in a testcase input file:**
+
+.. code-block:: bash
+
+   # Create a local copy of the testcase
+   cp apps/ode/testcases/box/box_mt_air5 my_box_input
+
+   # Edit the PATH line to point to your database
+   # Change: PATH = /home/munafo/Workspace/hermes/database
+   # To:     PATH = /absolute/path/to/your/database
+   sed -i 's|PATH.*=.*|PATH = /home/you/plato/database|' my_box_input
+
+   # Now run with the corrected input
+   cd apps/ode
+   ./box ../../my_box_input
+
+.. note::
+
+   Transport collision integrals are loaded automatically from
+   ``database/transport/`` (files ``eN``, ``HH_NN``, ``HH_NI``, ``polar_LJ``).
+   No separate filename is passed for transport data.
+
+For the library API, the database path is passed as the fifth argument to
+``plato_initialize()``:
+
+.. code-block:: fortran
+
+   call plato_initialize('my_solver', 'air5', 'air5', 'TTv', &
+                         '/absolute/path/to/database')
+
+
+.. _example_air5:
+
+Example 1: Air-5 Equilibrium Composition
+=========================================
+
+This example computes the LTE equilibrium composition of 5-species air
+(N\ :sub:`2`, O\ :sub:`2`, NO, N, O) as a function of temperature at 1 atm.
+
+Write the Program
+-----------------
+
+Create a file ``air5_equil.F90``:
+
+.. code-block:: fortran
+
+   program air5_equil
+     !---------------------------------------------------------------
+     ! Compute LTE equilibrium composition of air-5 mixture
+     ! from 300 K to 15000 K at 1 atm.
+     !
+     ! Usage:
+     !   gfortran -o air5_equil air5_equil.F90 -I$PLATO_DIR/mod \
+     !     -L$PLATO_DIR/lib -lplato
+     !   ./air5_equil
+     !---------------------------------------------------------------
+     use plato_utils_constants,   only: ONE, P_ATM
+     use plato_library_interface, only: kd_i4, kd_r8, s_str,        &
+       plato_initialize, plato_finalize,                             &
+       plato_get_nb_comp, plato_get_nb_species,                     &
+       plato_get_eq_composition_mole,                                &
+       plato_get_eq_gamma_sound_speed,                               &
+       plato_get_nb_density, plato_get_density,                      &
+       plato_open_file, plato_close_file,                            &
+       plato_mem_alloc_1d, plato_mem_dealloc_1d
+     implicit none
+
+     integer(kd_i4)                         :: Xi_file, ceq_file
+     integer(kd_i4)                         :: nb_comp, nb_sp
+     real(kd_r8), parameter                 :: DT    = 100.d0
+     real(kd_r8), parameter                 :: T_MIN = 300.d0
+     real(kd_r8), parameter                 :: T_MAX = 15000.d0
+     real(kd_r8)                            :: p, T
+     real(kd_r8)                            :: ceq, gammaeq, nd, rho
+     real(kd_r8), dimension(:), allocatable :: Xc, Xi
+     character(s_str)                       :: out_fmt
+
+     ! ------- Initialize PLATO -------
+     ! Arguments: solver_name, mixture, kinetics, transfer, database_path
+     ! Use 'empty' for kinetics and transfer since we only need LTE thermo
+     call plato_initialize('air5_equil', 'air5', 'empty', 'empty', &
+                           '/path/to/database')
+
+     nb_comp = plato_get_nb_comp()
+     nb_sp   = plato_get_nb_species()
+
+     call plato_mem_alloc_1d(1, nb_comp, Xc, 'Xc')
+     call plato_mem_alloc_1d(1, nb_sp,   Xi, 'Xi')
+
+     ! ------- Temperature sweep -------
+     p = P_ATM;  T = T_MIN
+
+     Xi_file  = plato_open_file('air5_Xi.dat',  'write')
+     ceq_file = plato_open_file('air5_ceq.dat', 'write')
+
+     Xc = ONE   ! Initial guess (uniform)
+
+     write(out_fmt, '(i2)') nb_comp + 1
+     out_fmt = '(' // trim(adjustl(out_fmt)) // '(e14.6,1x))'
+
+     do while (T <= T_MAX)
+       call plato_get_eq_composition_mole(p, T, Xc, Xi)
+       call plato_get_eq_gamma_sound_speed(p, T, Xi, gammaeq, ceq)
+
+       write(Xi_file,  out_fmt) T, Xc
+       write(ceq_file, '(3(e14.6,1x))') T, gammaeq, ceq
+
+       T = T + DT
+     end do
+
+     call plato_close_file(Xi_file)
+     call plato_close_file(ceq_file)
+
+     ! ------- Cleanup -------
+     call plato_finalize()
+     call plato_mem_dealloc_1d(Xc, 'Xc')
+     call plato_mem_dealloc_1d(Xi, 'Xi')
+
+     print *, 'Done. Output: air5_Xi.dat, air5_ceq.dat'
+   end program
+
+.. note::
+
+   Replace ``'/path/to/database'`` with the absolute path to your cloned
+   ``database/`` directory.
+
+Compile and Run
+---------------
+
+If PLATO is installed to ``$PLATO_DIR``:
+
+.. code-block:: bash
+
+   gfortran -o air5_equil air5_equil.F90 \
+     -I$PLATO_DIR/include -L$PLATO_DIR/lib -lplato
+   ./air5_equil
+
+If building from the source tree (not installed):
+
+.. code-block:: bash
+
+   gfortran -o air5_equil air5_equil.F90 \
+     -I../mod -L../src/.libs -lplato
+   LD_LIBRARY_PATH=../src/.libs ./air5_equil
+
+Expected Output
+---------------
+
+The file ``air5_Xi.dat`` contains columns: ``T, X_N, X_O, X_N2, X_NO, X_O2``
+(PLATO reorders species internally: atoms first, then molecules).
+
+A snippet of the output:
+
+.. code-block:: text
+
+   # T [K]     X_N            X_O            X_N2           X_NO           X_O2
+    300.0      3.192e-87      1.854e-45      7.900e-01      2.120e-22      2.100e-01
+   2000.0      1.023e-12      1.261e-04      7.899e-01      1.132e-02      1.988e-01
+   4000.0      1.154e-04      5.771e-02      7.484e-01      5.113e-02      1.425e-01
+   6000.0      6.553e-02      2.170e-01      4.744e-01      2.576e-02      2.170e-01
+   8000.0      3.656e-01      2.087e-01      1.218e-01      1.252e-02      2.914e-01
+  10000.0      6.308e-01      1.953e-01      2.027e-02      1.397e-03      1.525e-01
+  15000.0      7.894e-01      2.099e-01      3.428e-05      1.037e-05      2.755e-04
+
+.. note::
+
+   The exact values depend on the database version and thermodynamic data.
+   The qualitative behavior should match: molecular species dominate at low T,
+   atomic species at high T.
+
+Plot the Results
+----------------
+
+.. code-block:: python
+
+   #!/usr/bin/env python3
+   """Plot air-5 LTE equilibrium composition from PLATO output."""
+   import numpy as np
+   import matplotlib.pyplot as plt
+
+   # Load data (skip comment lines)
+   data = np.loadtxt('air5_Xi.dat')
+   T = data[:, 0]
+
+   # PLATO orders: atoms first (N, O), then molecules (N2, NO, O2)
+   species = {
+       'N':   data[:, 1],
+       'O':   data[:, 2],
+       'N$_2$': data[:, 3],
+       'NO':  data[:, 4],
+       'O$_2$': data[:, 5],
+   }
+
+   # --- Mole fraction vs temperature ---
+   fig, ax = plt.subplots(figsize=(8, 5))
+   colors = {'N': '#e41a1c', 'O': '#377eb8', 'N$_2$': '#4daf4a',
+             'NO': '#984ea3', 'O$_2$': '#ff7f00'}
+
+   for name, Xi in species.items():
+       ax.semilogy(T, np.maximum(Xi, 1e-30), label=name, color=colors[name],
+                   linewidth=2)
+
+   ax.set_xlabel('Temperature [K]', fontsize=12)
+   ax.set_ylabel('Mole Fraction', fontsize=12)
+   ax.set_title('Air-5 LTE Equilibrium Composition (1 atm)', fontsize=13)
+   ax.set_xlim(300, 15000)
+   ax.set_ylim(1e-6, 1.0)
+   ax.legend(fontsize=11, ncol=2)
+   ax.grid(True, alpha=0.3)
+   plt.tight_layout()
+   plt.savefig('air5_composition.png', dpi=150)
+   plt.show()
+
+**What the plot shows:**
+
+- **300--2000 K**: N\ :sub:`2` (~0.79) and O\ :sub:`2` (~0.21) dominate.
+  The gas is essentially frozen in its room-temperature composition.
+- **2000--4000 K**: O\ :sub:`2` begins to dissociate (lower bond energy than
+  N\ :sub:`2`). Atomic O appears. NO forms as an intermediate through
+  the Zel'dovich exchange reactions N\ :sub:`2` + O = NO + N and
+  NO + O = O\ :sub:`2` + N.
+- **4000--8000 K**: N\ :sub:`2` dissociates. Both atomic N and O grow rapidly.
+  NO peaks around 3500 K and then declines.
+- **Above ~8000 K**: Nearly fully dissociated. The composition approaches
+  X\ :sub:`N` ~ 0.79 and X\ :sub:`O` ~ 0.21, reflecting the original
+  elemental ratio.
+- Dissociation shifts to higher temperatures at higher pressure
+  (Le Chatelier's principle).
+
+
+.. _example_air11:
+
+Example 2: Air-11 with Ionization
+===================================
+
+This example extends to an 11-species ionized air mixture
+(N\ :sub:`2`, O\ :sub:`2`, NO, N, O, N\ :sup:`+`, O\ :sup:`+`,
+N\ :sub:`2`\ :sup:`+`, NO\ :sup:`+`, O\ :sub:`2`\ :sup:`+`, e\ :sup:`-`),
+sweeping from 300 K to 30000 K.
+
+Write the Program
+-----------------
+
+Create a file ``air11_equil.F90``:
+
+.. code-block:: fortran
+
+   program air11_equil
+     !---------------------------------------------------------------
+     ! LTE equilibrium composition of air-11 (ionized) mixture
+     ! from 300 K to 30000 K at 1 atm.
+     !---------------------------------------------------------------
+     use plato_utils_constants,   only: ONE, P_ATM
+     use plato_library_interface, only: kd_i4, kd_r8, s_str,        &
+       plato_initialize, plato_finalize,                             &
+       plato_get_nb_comp, plato_get_nb_species,                     &
+       plato_get_eq_composition_mole,                                &
+       plato_get_eq_gamma_sound_speed,                               &
+       plato_open_file, plato_close_file,                            &
+       plato_mem_alloc_1d, plato_mem_dealloc_1d
+     implicit none
+
+     integer(kd_i4)                         :: Xi_file, ceq_file
+     integer(kd_i4)                         :: nb_comp, nb_sp
+     real(kd_r8), parameter                 :: DT    = 100.d0
+     real(kd_r8), parameter                 :: T_MIN = 300.d0
+     real(kd_r8), parameter                 :: T_MAX = 30000.d0
+     real(kd_r8)                            :: p, T
+     real(kd_r8)                            :: ceq, gammaeq
+     real(kd_r8), dimension(:), allocatable :: Xc, Xi
+     character(s_str)                       :: out_fmt
+
+     call plato_initialize('air11_equil', 'air11', 'empty', 'TTv', &
+                           '/path/to/database')
+
+     nb_comp = plato_get_nb_comp()
+     nb_sp   = plato_get_nb_species()
+
+     call plato_mem_alloc_1d(1, nb_comp, Xc, 'Xc')
+     call plato_mem_alloc_1d(1, nb_sp,   Xi, 'Xi')
+
+     p = P_ATM;  T = T_MIN
+
+     Xi_file  = plato_open_file('air11_Xi.dat',  'write')
+     ceq_file = plato_open_file('air11_ceq.dat', 'write')
+
+     Xc = ONE
+
+     write(out_fmt, '(i2)') nb_comp + 1
+     out_fmt = '(' // trim(adjustl(out_fmt)) // '(e14.6,1x))'
+
+     do while (T <= T_MAX)
+       call plato_get_eq_composition_mole(p, T, Xc, Xi)
+       call plato_get_eq_gamma_sound_speed(p, T, Xi, gammaeq, ceq)
+
+       write(Xi_file,  out_fmt) T, Xc
+       write(ceq_file, '(3(e14.6,1x))') T, gammaeq, ceq
+
+       T = T + DT
+     end do
+
+     call plato_close_file(Xi_file)
+     call plato_close_file(ceq_file)
+
+     call plato_finalize()
+     call plato_mem_dealloc_1d(Xc, 'Xc')
+     call plato_mem_dealloc_1d(Xi, 'Xi')
+
+     print *, 'Done. Output: air11_Xi.dat, air11_ceq.dat'
+   end program
+
+.. note::
+
+   The ``air11`` mixture file in the database includes 11 components:
+   ``em N O Np Op N2 NO O2 N2p NOp O2p``. PLATO reorders them
+   internally (electrons first, then atoms, neutrals, ions).
+
+Compile, Run, and Plot
+-----------------------
+
+.. code-block:: bash
+
+   gfortran -o air11_equil air11_equil.F90 \
+     -I$PLATO_DIR/include -L$PLATO_DIR/lib -lplato
+   ./air11_equil
+
+.. code-block:: python
+
+   #!/usr/bin/env python3
+   """Plot air-11 LTE equilibrium composition."""
+   import numpy as np
+   import matplotlib.pyplot as plt
+
+   data = np.loadtxt('air11_Xi.dat')
+   T = data[:, 0]
+
+   # Air-11 ordering (PLATO internal): em, N, O, Np, Op, N2, NO, O2, N2p, NOp, O2p
+   labels = ['e$^-$', 'N', 'O', 'N$^+$', 'O$^+$',
+             'N$_2$', 'NO', 'O$_2$', 'N$_2^+$', 'NO$^+$', 'O$_2^+$']
+
+   fig, ax = plt.subplots(figsize=(9, 5.5))
+   for i, name in enumerate(labels):
+       ax.semilogy(T, np.maximum(data[:, i + 1], 1e-30), label=name,
+                   linewidth=1.5)
+
+   ax.set_xlabel('Temperature [K]', fontsize=12)
+   ax.set_ylabel('Mole Fraction', fontsize=12)
+   ax.set_title('Air-11 LTE Equilibrium Composition (1 atm)', fontsize=13)
+   ax.set_xlim(300, 30000)
+   ax.set_ylim(1e-6, 1.0)
+   ax.legend(fontsize=9, ncol=3, loc='center left')
+   ax.grid(True, alpha=0.3)
+   plt.tight_layout()
+   plt.savefig('air11_composition.png', dpi=150)
+   plt.show()
+
+**What the plot shows (additional physics beyond air-5):**
+
+- **300--7000 K**: Same dissociation physics as air-5. Molecular species
+  dissociate into atoms.
+- **7000--10000 K**: **Ionization begins.** NO\ :sup:`+` is the first ion to
+  appear (lowest ionization potential of the diatomic species at ~9.26 eV).
+  Free electrons (e\ :sup:`-`) appear to maintain charge neutrality.
+- **10000--15000 K**: N and O begin to ionize. N\ :sup:`+` and O\ :sup:`+`
+  grow rapidly. The electron mole fraction reaches ~0.01--0.1.
+- **15000--30000 K**: The gas becomes a partially to fully ionized plasma.
+  At 30000 K, the dominant species are N\ :sup:`+`, O\ :sup:`+`, and
+  e\ :sup:`-`. Neutral atoms decline.
+- The **equilibrium sound speed** :math:`c_{eq}` shows bumps at each
+  dissociation/ionization onset (energy absorption reduces
+  :math:`\gamma_{eq}`).
+
+
+.. _example_box:
+
+Example 3: BOX Reactor Simulation
+===================================
+
+The BOX application simulates a 0D isochoric (constant-volume) chemical reactor.
+This is the simplest PLATO ODE application and is useful for studying chemical
+kinetics in isolation.
+
+Prepare the Input File
+-----------------------
+
+Copy and edit a built-in testcase:
+
+.. code-block:: bash
+
+   cp apps/ode/testcases/box/box_mt_air5 my_box_input
+
+Edit ``my_box_input`` to update the database path:
+
+.. code-block:: text
+
+   #---------------------------
+   # Path to data and mixture, reaction, transfer files
+   PATH     = /absolute/path/to/your/database
+   MIXTURE  = air5
+   REACTION = air5
+   TRANSFER = TTv
+
+   #---------------------------
+   # Initial conditions (pressure, temperature, and mole fractions)
+   P0    = 1000.d0              # Initial pressure [Pa]
+   T0    = 300.d0               # Initial temperature [K]
+   COMP0 = O2 N2                # Component names
+   XC0   = 0.21d0 0.79d0        # Initial mole fractions
+
+   # Bath temperature(s) — the gas is heated to this temperature
+   T_BATH  = 10000.d0           # Heavy-particle bath temp [K]
+   TI_BATH = 300.d0             # Internal mode bath temp [K]
+   TE_BATH = 300.d0             # Electron bath temp [K]
+
+   # Mode: isothermal (heavy-particle T fixed at T_BATH)
+   MODE = ISOTHERMAL
+
+   #---------------------------
+   # Time-grid parameters
+   TS     = 0.d0                # Start time [s]
+   TE     = 1.d-3               # End time [s]
+   DT_MAX = 1.d-6               # Max time step [s]
+   DT_MIN = 1.d-14              # Min time step [s]
+   SF     = 1.01d0              # Grid stretching factor
+
+   #---------------------------
+   # ODE solver settings
+   ATOL = 1.d-12                # Absolute tolerance
+   RTOL = 1.d-9                 # Relative tolerance
+
+Run the Simulation
+------------------
+
+.. code-block:: bash
+
+   cd apps/ode
+   ./box ../../my_box_input
+
+The BOX executable expects the input file path as its first command-line argument.
+
+Understand the Input Parameters
+--------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 15 67
+
+   * - Parameter
+     - Example
+     - Description
+   * - ``PATH``
+     - ``/path/to/database``
+     - Absolute path to the PLATO database directory
+   * - ``MIXTURE``
+     - ``air5``
+     - Mixture file (in ``database/mixture/``)
+   * - ``REACTION``
+     - ``air5``
+     - Kinetics mechanism file (in ``database/kinetics/``)
+   * - ``TRANSFER``
+     - ``TTv``
+     - Energy transfer model file (in ``database/transfer/``)
+   * - ``P0``
+     - ``1000.d0``
+     - Initial pressure [Pa]
+   * - ``T0``
+     - ``300.d0``
+     - Initial temperature [K]
+   * - ``COMP0``
+     - ``O2 N2``
+     - Initial component names (space-separated)
+   * - ``XC0``
+     - ``0.21d0 0.79d0``
+     - Initial mole fractions (must match ``COMP0`` order)
+   * - ``T_BATH``
+     - ``10000.d0``
+     - Heavy-particle thermal bath temperature [K]. In ``ISOTHERMAL``
+       mode, the heavy-particle temperature is fixed at this value.
+   * - ``MODE``
+     - ``ISOTHERMAL``
+     - Reactor mode: ``ISOTHERMAL_ALL_T`` (all T fixed),
+       ``ISOTHERMAL`` (heavy T fixed), or ``ADIABATIC`` (all T evolve)
+
+Interpret the Output
+---------------------
+
+The output is written to ``output_box/box.dat`` (created in the working
+directory). Columns:
+
+1. Time [s]
+2. Mole fractions :math:`X_s` for each species
+3. Temperatures :math:`T_k` for each thermal mode
+4. Total density :math:`\rho` [kg/m\ :sup:`3`]
+5. Pressure :math:`p` [Pa]
+6. Number density :math:`n_d` [1/m\ :sup:`3`]
+7. Total energy :math:`E` [J/kg]
+
+**Expected behavior** for this air-5 isothermal case:
+
+- The gas starts as cold N\ :sub:`2`/O\ :sub:`2` but is instantly heated to
+  10000 K (isothermal bath).
+- O\ :sub:`2` dissociates first (lower dissociation energy: 5.12 eV vs 9.76 eV
+  for N\ :sub:`2`).
+- N\ :sub:`2` dissociates on a longer timescale.
+- NO forms as a transient intermediate via Zel'dovich exchange reactions.
+- The system reaches chemical equilibrium at the bath temperature (10000 K)
+  within ~1 ms.
+
+
+.. _troubleshooting:
+
+Troubleshooting
+===============
+
+Database Path Errors
+--------------------
+
+.. code-block:: text
+
+   PLATO ERROR: Cannot open file: /home/munafo/Workspace/hermes/database/mixture/air5
+
+**Fix:** The input file contains a hardcoded ``PATH`` from the developer's
+machine. Edit the ``PATH = ...`` line to point to your local ``database/``
+directory. Use an **absolute path**.
+
+Parallel Build Failure (Autotools)
+-----------------------------------
+
+.. code-block:: text
+
+   Fatal Error: Cannot open module file 'plato_kind_prec.mod' for reading
+
+**Fix:** You used ``make -j``. With the Autotools build, Fortran module
+dependencies are not declared, causing race conditions. Run plain ``make``
+(no ``-j``).
+
+NASA Polynomial Mismatch
+--------------------------
+
+.. code-block:: text
+
+   PLATO ERROR: NASA polynomial data not found for species N2
+
+**Fix:** You enabled ``--enable-nasa_poly`` (or ``-DPLATO_ENABLE_NASA_POLY=ON``)
+but the mixture file does not have ``NASA_POLY_THERMO = T`` or the species
+files lack NASA 9-coefficient data. Either:
+
+- Disable the NASA polynomial option and rebuild, or
+- Ensure the mixture file in ``database/mixture/`` includes
+  ``NASA_POLY_THERMO = T`` and that the species have NASA data files.
+
+Missing Modules on Clusters
+-----------------------------
+
+.. code-block:: text
+
+   gfortran: command not found
+
+**Fix:** Load the required environment modules:
+
+.. code-block:: bash
+
+   module load gcc/12.3.0
+   module load cmake/3.27.4
+
+Use ``module avail`` to see available modules on your cluster.
+
+Linker Errors (Undefined Symbols)
+----------------------------------
+
+.. code-block:: text
+
+   undefined reference to `plato_initialize_'
+
+**Fix:** Ensure you link against ``libplato``:
+
+.. code-block:: bash
+
+   gfortran mycode.F90 -I$PLATO_DIR/include -L$PLATO_DIR/lib -lplato
+
+If using the shared library, set ``LD_LIBRARY_PATH``:
+
+.. code-block:: bash
+
+   export LD_LIBRARY_PATH=$PLATO_DIR/lib:$LD_LIBRARY_PATH
+
+CVODE Not Found at Runtime
+---------------------------
+
+.. code-block:: text
+
+   error while loading shared libraries: libsundials_cvode.so
+
+**Fix:** Add the SUNDIALS library path to ``LD_LIBRARY_PATH``:
+
+.. code-block:: bash
+
+   export LD_LIBRARY_PATH=$SUNDIALS_DIR/lib:$LD_LIBRARY_PATH
+
+
+.. _next_steps:
+
+Next Steps
+==========
+
+- **User Guide**: See the :ref:`user_guide` for detailed coverage of database
+  file formats, all application codes, and common programming patterns.
+- **Theory**: See :ref:`physics` for the governing equations, transport theory,
+  and collision integral models underlying PLATO.
+- **API Reference**: See :ref:`api_reference` for the complete Fortran, C, and
+  C++ API signatures.
+- **Test Suite**: Explore ``test/Fortran/`` for more usage examples including
+  transport property calculations, kinetics Jacobian validation, and radiation
+  absorption spectra.
+- **Application Testcases**: Run the built-in testcases in
+  ``apps/ode/testcases/`` (14 BOX, 4 SHOCK, 1 LAGR, 2 GSI configurations).

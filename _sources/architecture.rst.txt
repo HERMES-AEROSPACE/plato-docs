@@ -1,0 +1,625 @@
+.. _architecture:
+
+========================
+Architecture Reference
+========================
+
+*Originally based on: Munafo & Panesi, JTHT Vol. 39 No. 4, 2025.
+Updated to reflect the current codebase (modules added after publication
+are marked with* **[new]** *).*
+
+
+Module Dependency Map
+=====================
+
+.. code-block:: text
+
+   External Libraries (optional)
+   +-----------+  +-----------+  +-----------+  +-----------+  +-----------+
+   | GCC/Intel |  | OpenBLAS  |  |  LAPACK   |  | SUNDIALS  |  |   GSL     |
+   +-----+-----+  +-----+-----+  +-----+-----+  +-----+-----+  +-----+-----+
+         |              |              |               |              |
+         v              v              v               v              v
+   +----------------------------------------------------------------------+
+   |                              src/                                     |
+   |                                                                       |
+   |  Infrastructure layer:                                                |
+   |  +----------+ +----------+ +-----------+ +--------------+ +--------+  |
+   |  | driver   | | general  | |  utils    | |  numerics    | |   c    |  |
+   |  +----------+ +----------+ +-----------+ +--------------+ +--------+  |
+   |                                                                       |
+   |  API layer:                                                           |
+   |  +------------+ +---------------+ +----------------+                  |
+   |  | interface  | | interface_c   | | interface_cpp  |                  |
+   |  +------------+ +---------------+ +----------------+                  |
+   |                                                                       |
+   |  Physics layer:                                                       |
+   |  +----------+ +-----------+ +----------------+                        |
+   |  |  thermo  | | transport | |   kinetics     |                        |
+   |  +----------+ +-----------+ +----------------+                        |
+   |  +--------------+ +---------------+ +--------------+                  |
+   |  | thermo_gsi   | | kinetics_gsi  | | kinetics_lpi |   [new]         |
+   |  +--------------+ +---------------+ +--------------+                  |
+   |  +--------------+ +--------------+                                    |
+   |  |  radiation   | |  proj_rom    |                         [new]      |
+   |  +--------------+ +--------------+                                    |
+   |                                                                       |
+   |  Solver layer:                                                        |
+   |  +----------------+ +--------------+                                  |
+   |  | ode_integrator | | post_process |                                  |
+   |  +----------------+ +--------------+                                  |
+   +----------------------------------------------------------------------+
+
+
+Module Details
+==============
+
+1. ``driver``
+-------------
+
+- ``plato_initialize()`` -- main entry point, loads all data files
+- ``plato_finalize()`` -- cleanup
+
+2. ``general``
+--------------
+
+- Stores runtime data: number of species, components, etc.
+- Global physical constants (:math:`k_B`, etc.)
+
+3. ``interface``, ``interface_c``, ``interface_cpp``
+----------------------------------------------------
+
+Three separate directories provide the external API:
+
+- **``interface/``** -- Primary Fortran API (``plato_library_interface.F90``)
+- **``interface_c/``** -- C API wrapper via ``iso_c_binding``
+  (``plato_library_interface_c.c``)
+- **``interface_cpp/``** -- C++ API wrapper (``plato_library_interface_cpp.cxx``)
+
+Headers for the C/C++ APIs live in the top-level ``include/`` directory (15 ``.h`` files).
+
+Key design points:
+
+- The Fortran interface is a **pure re-export facade** -- no executable code,
+  only ``interface`` blocks that rename internal routines with the ``plato_`` prefix.
+- The C and C++ wrappers **independently** call the same Fortran ``bind(C)``
+  functions. The C++ layer does NOT wrap the C layer.
+- For routines needing C interoperability, PLATO provides **dual versions**:
+  an assumed-shape ``dimension(:)`` version (Fortran-facing, ``F``-suffixed) and
+  an assumed-size ``dimension(*)`` version (C-facing, with ``bind(C)``).
+
+3a. ``c`` -- C/GSL Bindings [new]
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``src/c/`` directory contains C code that wraps GSL for numerical tasks.
+All routines are conditional on ``PLATO_HAVE_GSL``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 10 55
+
+   * - File
+     - Language
+     - Purpose
+   * - ``plato_c_gsl_fit_arrhenius.c``
+     - C
+     - Levenberg-Marquardt nonlinear least squares for modified Arrhenius fitting
+   * - ``plato_c_gsl_sigma_table.c``
+     - C
+     - Cross-section table interpolation with boundary handling
+   * - ``plato_c_gsl_sigma_ff.c``
+     - C
+     - Three free-free cross-section models (Dalgarno-Lane, Phelps, Kroll-Watson)
+   * - ``plato_c_gsl_avg_mom_cross_sec.c``
+     - C
+     - Maxwellian-averaged momentum transfer cross-section via Clenshaw-Curtis
+   * - ``plato_c_gsl_avg_ff_cross_sec.c``
+     - C
+     - Maxwellian-averaged free-free cross-section (**INCOMPLETE**)
+   * - ``plato_c_fun_interface.F90``
+     - Fortran
+     - ``bind(C)`` interfaces for the 3 public C functions
+
+4. ``post_process``
+-------------------
+
+The post-processing module (3 source files) extracts derived quantities and
+internal temperatures from CR/StS population distributions. Depends only on
+``thermo``.
+
+- ``get_output_var(nb_in_var, nb_out_var, in_var, out_var)`` [C-bound] --
+  converts primitive variables to derived quantities for visualization
+- ``post_process_solution(...)`` -- Newton solver for Boltzmann-equivalent
+  internal temperatures (warm-starting, REL_TOL = 1e-8, MAX_IT = 50)
+
+5. ``utils``
+------------
+
+- File parsing (database text files)
+- String manipulation
+- Interpolation routines
+- Curve fitting: modified Arrhenius law
+
+6. ``kinetics``
+---------------
+
+The kinetics module (22 source files) computes mass production terms, energy
+exchange terms, and their analytical Jacobians for multicomponent gas/plasma
+mixtures in thermochemical nonequilibrium.
+
+Reaction Types (16 Gas-Phase Process IDs)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+   :widths: 5 15 35 15
+
+   * - ID
+     - Symbol
+     - Process
+     - Temperature
+   * - 1
+     - ``Dh_cat_sts``
+     - Dissociation by heavy impact (StS, with catalyst)
+     - :math:`T_h`
+   * - 2
+     - ``Dh_cat_mt``
+     - Dissociation by heavy impact (MT, Park :math:`TT_v`)
+     - :math:`TT_v`
+   * - 3
+     - ``Dh``
+     - Dissociation by heavy impact (no catalyst)
+     - :math:`T_h`
+   * - 4
+     - ``De``
+     - Dissociation by electron impact
+     - :math:`T_e`
+   * - 5
+     - ``PD``
+     - Predissociation (tunneling)
+     - :math:`T_h`
+   * - 6
+     - ``EXh``
+     - Excitation by heavy impact
+     - :math:`T_h`
+   * - 7
+     - ``EXC``
+     - Combined dissociation-excitation
+     - :math:`T_h`
+   * - 8
+     - ``EXe``
+     - Excitation by electron impact
+     - :math:`T_e`
+   * - 9
+     - ``Ie``
+     - Ionization by electron impact
+     - :math:`T_e`
+   * - 10
+     - ``Ih``
+     - Ionization by heavy impact
+     - :math:`T_h`
+   * - 11
+     - ``AI``
+     - Associative ionization
+     - :math:`T_h`
+   * - 12
+     - ``PI``
+     - Photoionization (cross-section-based)
+     - --
+   * - 13
+     - ``DIe``
+     - Dissociative ionization by electron impact
+     - :math:`T_e`
+   * - 14
+     - ``Rh_cat``
+     - Particle/charge exchange (Zel'dovich)
+     - :math:`T_h`
+   * - 15
+     - ``line_AE``
+     - Line emission/absorption
+     - --
+   * - 16
+     - ``RR``
+     - Radiative recombination
+     - :math:`T_e`
+
+Source Term Pipeline
+^^^^^^^^^^^^^^^^^^^^
+
+1. Convert mass densities :math:`\rho_i` to number densities :math:`n_i`
+2. Clamp temperatures (enforce positivity)
+3. ``compute_rate_coeff()`` -- forward via modified Arrhenius, backward via
+   microreversibility
+4. Loop over 14 reaction categories, accumulate production rates:
+   :math:`\dot{n} = k_f \times [\text{reactants}] - k_b \times [\text{products}]`
+5. Convert to mass rates: :math:`\omega_i = m_i \times \dot{n}_i`
+6. Add energy exchange: VT, VE, CV, CEL, TE, FF
+
+Analytical Jacobian
+^^^^^^^^^^^^^^^^^^^^
+
+Full :math:`\partial(\omega_i, \Omega) / \partial(\rho_j, T_k)` matrix with:
+
+- Chain rule for Park temperature
+- Collision partner optimization via ``jcol`` temporary
+- Transfer module Jacobians included
+- Mass-only variant: :math:`n_{sp} \times n_{sp}`
+
+Energy Transfer Mechanisms
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 25 65
+
+   * - Term
+     - Physics
+     - Model
+   * - :math:`\Omega_{VT}`
+     - Vibration-Translation
+     - Landau-Teller + Millikan-White + Park correction
+   * - :math:`\Omega_{VE}`
+     - Vibration-Electron (N\ :sub:`2`\ -e\ :sup:`-`)
+     - Piecewise polynomial :math:`\tau_{VE}(p_e, T_e)`
+   * - :math:`\Omega_{TE}`
+     - Elastic electron-heavy
+     - :math:`\tfrac{3}{2} k_B n_e (T_h - T_e) \nu_{eh}`
+   * - :math:`\Omega_{CV}`
+     - Chemistry-Vibration coupling
+     - :math:`\omega_m \times e_v(m, T_v)` (post-kinetics)
+   * - :math:`\Omega_{CEL}`
+     - Chemistry-Electronic coupling
+     - :math:`\omega_s \times e_{el}(s, T_e)` (post-kinetics)
+   * - :math:`\Omega_{ff}`
+     - Free-free Bremsstrahlung
+     - Kramers (Gaunt=1)
+
+7. ``numerics``
+---------------
+
+Self-contained direct linear system solvers (no external LAPACK dependency):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 25 25
+
+   * - Routine
+     - Algorithm
+     - Storage
+     - Callers
+   * - ``solve_sym_linsys``
+     - LDL\ :sup:`T` Cholesky (EGLIB heritage)
+     - Packed symmetric 1D
+     - Transport (viscosity, :math:`\lambda`, diffusion)
+   * - ``solve_linsys``
+     - LU with partial pivoting (Crout)
+     - Full 2D
+     - Ionized Stefan-Maxwell, thermo equilibrium
+   * - ``inv_lu``
+     - Column-by-column LU
+     - Full 2D
+     - ROM biorthogonalization
+
+8. ``ode_integrator``
+---------------------
+
+ODE right-hand sides for simplified configurations:
+
+- **BOX**: isochoric reactor (isothermal or adiabatic)
+- **SHOCK**: inviscid post-shock flow
+- **LAGR**: Lagrangian inviscid flow
+- **GSI**: gas-surface interaction [new]
+
+Time integration via LSODE (legacy, Fortran 77) or CVODE from SUNDIALS.
+
+9. ``thermo``
+--------------
+
+The largest module (~28 source files) providing two alternative thermodynamics paths:
+
+**Path 1: Partition-function-based (default)**
+
+- Statistical mechanics: rigid rotor, harmonic oscillator, Boltzmann electronic
+- Equilibrium constants from partition function ratios
+- No entropy available
+
+**Path 2: NASA 9-coefficient polynomials** (``--enable-nasa_poly``)
+
+- ``nasa_thermo_class`` type with 51 type-bound procedures across 7 submodules
+- Provides Cp, h, s, g (Gibbs) per species
+- Entropy available (absolute entropy from polynomials)
+
+**MODEL parameter** -- controls runtime dispatch via procedure pointer arrays:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 40 20 25
+
+   * - MODEL
+     - Description
+     - Applies to
+     - Dispatch target
+   * - ``RR_HO_EL``
+     - Rigid rotor + harmonic oscillator + electronic (default)
+     - Molecules
+     - ``rr_ho_el_*`` functions
+   * - ``EL``
+     - Electronic Boltzmann only
+     - Atoms
+     - ``el_*`` functions
+   * - ``NONE`` / ``STS``
+     - State-to-state (levels as pseudo-species)
+     - Any
+     - ``constant_Q`` (Q=g, e=0)
+   * - ``GROUP``
+     - Coarse-grained groups
+     - Molecules
+     - ``group_*`` (table interp.)
+
+**LTE composition**: Newton-Raphson in log-space following Bottin et al. (1999).
+Schur complement reduction. Convergence: :math:`\log_{10}(L_2) < -12`.
+
+**Temperature retrieval**: Newton solvers with hybrid secant/binary + log-Newton
+fallback for robustness.
+
+10. ``transport``
+-----------------
+
+Computes viscosity, thermal conductivity, diffusion, and electrical conductivity
+(18 source files).
+
+**Collision integrals**: Loaded at initialization from ``database/transport/`` into
+uniform-grid lookup tables (default 200--100200 K). Multiple interaction models
+supported via OOP classes:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 25 45
+
+   * - Model
+     - Interaction type
+     - Source
+   * - Gupta curve fits (default)
+     - N-N, N-I, e-N
+     - ``HH_NN``, ``HH_NI``, ``eN`` files
+   * - Lennard-Jones
+     - N-N
+     - Hard-coded Monchick & Mason tables
+   * - Polarization / Langevin
+     - I-N
+     - Analytical + resonant charge exchange fits
+   * - Capitelli (Laricchiuta / Bruno)
+     - N-N, N-I, e-N
+     - Database parameters
+   * - Screened Coulomb
+     - e-e, e-I, I-I
+     - Computed at runtime (Debye length)
+
+**Transport systems and Sonine orders**:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 25 15
+
+   * - Property
+     - Sonine order
+     - Linear system
+     - Solver
+   * - Viscosity :math:`\mu`
+     - 1st
+     - Symmetric :math:`n_h \times n_h`
+     - Cholesky
+   * - Heavy :math:`\lambda^{tr}_h`
+     - 1st
+     - Symmetric :math:`n_h \times n_h`
+     - Cholesky
+   * - Internal :math:`\lambda^{int}`
+     - Eucken
+     - Closed-form
+     - --
+   * - Electron :math:`\lambda_e`
+     - **3rd**
+     - Analytic 2x2 inversion
+     - --
+   * - Electrical :math:`\sigma_e`
+     - **2nd** (default)
+     - Analytic
+     - Cholesky 3x3
+   * - Neutral diffusion
+     - 1st
+     - Symmetric :math:`n_c \times n_c`
+     - Cholesky
+   * - Ionized diffusion
+     - 1st
+     - Non-symmetric :math:`(n_c+1)^2`
+     - LU (Crout)
+
+11. ``kinetics_gsi`` -- Gas-Surface Interaction [new]
+-----------------------------------------------------
+
+8 surface reaction types: catalysis (gamma), adsorption, desorption, dissociative
+chemisorption, Langmuir-Hinshelwood (2 variants), Eley-Rideal (2 variants).
+
+Three species namespaces: gas / surface / bulk. All forward-only (no
+microreversibility). QSS Newton solver for steady-state surface coverages.
+
+12. ``kinetics_lpi`` -- Laser-Plasma Interaction [new]
+------------------------------------------------------
+
+Multi-photon ionization (MPI) and inverse Bremsstrahlung (IB) source terms with
+analytical Jacobian. Absorption coefficient delegated to radiation module. All
+processes irreversible.
+
+13. ``thermo_gsi`` -- GSI Thermodynamics [new]
+-----------------------------------------------
+
+Surface/bulk species data for gas-surface interaction (2 files). Query routines
+for surface species names, counts, and gas-phase mapping.
+
+14. ``radiation`` -- Radiative Properties [new]
+------------------------------------------------
+
+Spectral absorption/emission coefficients (9 source files). OOP composition
+pattern: ``radiation`` type contains ``rad_atom(:)`` and ``rad_molecule(:)`` arrays.
+
+**Processes**:
+
+- **Bound-Bound** (BB): Line-by-line with Voigt profiles, NIST Einstein coefficients
+- **Bound-Free** (BF): Kramers hydrogenic cross-section
+- **Free-Free** (FF): Electron-ion Coulomb + electron-neutral tabulated Qff
+
+LTE mode computes equilibrium composition internally; NLTE mode accepts
+user-supplied populations.
+
+**Limitation**: Molecular BB/BF not implemented -- only FF for molecules.
+
+15. ``proj_rom`` -- Projected Reduced-Order Models [new]
+--------------------------------------------------------
+
+Petrov-Galerkin projection with biorthogonalized trial (:math:`\Phi`) and test
+(:math:`\Psi`) bases:
+
+- **Encode**: :math:`z = \Psi^T \times (x - x_{ref})`
+- **Decode**: :math:`x = \Phi \times z + x_{ref}`
+- **Jacobian compression**: :math:`J_{red} = \Psi^T \times J \times \Phi`
+
+Mask array allows mixing projected and non-projected species.
+
+
+Application Codes
+=================
+
+Located in ``apps/``. All statically link the entire PLATO library source.
+
+ODE Solver Applications
+-----------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 25 20 15 15
+
+   * - App
+     - Physics
+     - Independent var
+     - Key input
+     - Jacobian
+   * - ``box``
+     - 0D reactor (isochoric)
+     - time [s]
+     - P0, T0, MODE
+     - User-supplied
+   * - ``shock``
+     - 1D post-shock
+     - position [m]
+     - P_OO, T_OO, U_OO
+     - Finite-diff
+   * - ``lagr``
+     - Lagrangian particle
+     - Lagr. time [s]
+     - FIELD_FILE
+     - US/FD
+   * - ``gsi``
+     - Surface kinetics sweep
+     - surface T [K]
+     - FLUX_BEAM, T_MIN/MAX
+     - Finite-diff
+
+Other Applications
+------------------
+
+- **``apps/fit/``** -- Arrhenius rate fitting (requires GSL)
+- **``apps/lpi/``** -- Laser-plasma dielectric properties (requires GSL)
+- **``apps/lte/``** -- LTE lookup table generation on :math:`(\rho, T)` grid
+- **``apps/spec/``** -- Spectral convolution with instrument line shapes
+
+
+Database File Formats
+=====================
+
+Mixture File
+------------
+
+.. code-block:: text
+
+   ELEM       = N O
+   ELEM_FRAC  = 0.79 0.21
+   COMP       = N O N2 NO O2
+   NASA_POLY_THERMO = T    # optional
+
+Thermo File
+-----------
+
+.. code-block:: text
+
+   NAME = N2
+   MOLAR_MASS = 28.0134d-3          # kg/mol
+   NB_ATOMS = 2
+   ELEM_NAME = N
+   ELEM_QUANT = 2
+   EF = 0.d0                         # Formation energy at 0K [J/mol]
+   CHARGE = 0
+   MODEL = RR_HO_EL
+   NB_ELEC_LEVELS = 4
+   # degeneracy  energy[eV]
+   1  0.d0
+   3  0.622439e+01
+   6  0.739178e+01
+   6  0.110515e+02
+
+Kinetics File
+-------------
+
+.. code-block:: text
+
+   Units=cm^3/(mol*s)
+
+   # Heavy-particle impact dissociation (processID=1 or 2)
+   N2+M=N+N+M:3.0E+22,-1.6d0,113200.d0,1
+   M=N,O
+
+   # Exchange / Zel'dovich reactions (processID=6 for EXh)
+   NO+O=O2+N:8.4E+12,0.d0,19450.d0,6
+   N2+O=NO+N:6.4E+17,-1.d0,38400.d0,6
+
+
+Test Infrastructure
+===================
+
+**No automated test runner** -- tests run manually. No assertion framework.
+Pass = runs to completion + physically reasonable output.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 10 10 55
+
+   * - Category
+     - Tests
+     - Language
+     - Key Validation
+   * - Kinetics Jacobian
+     - 4
+     - Fortran
+     - Analytical vs. numerical Jacobian (FD)
+   * - LTE composition
+     - 4
+     - F + C + C++
+     - Composition sweeps, post-shock
+   * - LTE transport
+     - 8
+     - Fortran
+     - 8 gas mixtures (Earth, Mars, Ar, H, He, Jupiter)
+   * - ODE integration
+     - 7
+     - F + C + C++
+     - Box, Lagrangian, CFD pattern
+   * - Radiation
+     - 3
+     - Fortran
+     - BB/BF/FF absorption, LIB at 532 nm
+   * - Temperature inversion
+     - 4
+     - Fortran
+     - Energy-temperature roundtrips
+
+**Untested modules**: GSI kinetics (app testcases only), LPI kinetics (app only),
+ROM (no tests), post-process (indirect), numerics (indirect).

@@ -1,0 +1,469 @@
+.. _user_guide:
+
+==========
+User Guide
+==========
+
+This guide covers how to use PLATO's database system, application codes, and
+library API for common tasks.
+
+
+.. _build_system:
+
+Build System
+============
+
+PLATO supports two build systems:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Build System
+     - Status
+     - Notes
+   * - **CMake** (recommended)
+     - Primary
+     - Supports parallel builds (``make -j``), out-of-tree builds, documentation
+       targets. ~12x faster than Autotools on multicore machines.
+   * - **GNU Autotools**
+     - Legacy
+     - Original build system. Sequential ``make`` only (``make -j`` will fail).
+       May be removed in a future release.
+
+See :ref:`getting_started` for complete build instructions, CMake option
+tables, and step-by-step examples for both systems.
+
+**Quick start** (CMake):
+
+.. code-block:: bash
+
+   git clone https://github.com/HERMES-AEROSPACE/plato.git && cd plato
+   git clone https://github.com/HERMES-AEROSPACE/database.git
+   mkdir build && cd build
+   cmake .. && make -j$(nproc)
+
+
+.. _database_files:
+
+Database Files
+==============
+
+PLATO reads all physicochemical data from plain-text files in the ``database/``
+directory. Each file type uses a ``KEY = value`` format with ``#`` comments.
+
+Mixture Files
+-------------
+
+Location: ``database/mixture/``
+
+A mixture file defines which species are in your gas/plasma and their
+elemental composition.
+
+.. code-block:: text
+
+   # database/mixture/air5
+   ELEM       = N O
+   ELEM_FRAC  = 0.79 0.21
+   COMP       = N O N2 NO O2
+
+Fields:
+
+- ``ELEM`` -- element names
+- ``ELEM_FRAC`` -- element mole fractions (used as initial guess for LTE solver)
+- ``COMP`` -- component (species) names; each must have a corresponding file in
+  ``database/thermo/``
+- ``NASA_POLY_THERMO = T`` -- optional; enables NASA 9-coefficient polynomial
+  thermodynamics (requires ``--enable-nasa_poly`` at configure time)
+
+For ionized mixtures, include charged species and the electron:
+
+.. code-block:: text
+
+   # database/mixture/air11
+   ELEM       = N O
+   ELEM_FRAC  = 0.79 0.21
+   COMP       = em N O Np Op N2 NO O2 N2p NO2p O2p
+
+.. note::
+
+   Species ordering in the mixture file does not matter. PLATO reorders
+   internally: free electrons first, then elements, neutrals, positive ions,
+   negative ions.
+
+Thermodynamic Data Files
+------------------------
+
+Location: ``database/thermo/``
+
+One file per species. Example for N\ :sub:`2`:
+
+.. code-block:: text
+
+   NAME = N2
+   MOLAR_MASS = 28.0134d-3          # kg/mol
+   NB_ATOMS = 2
+   ELEM_NAME = N
+   ELEM_QUANT = 2
+   EF = 0.d0                         # Formation energy at 0K [J/mol]
+   DE = 9.756d0                      # Dissociation energy [eV]
+   CHARGE = 0
+   IP = 15.581d0                     # Ionization potential [eV]
+   LIN = 1                           # Linearity (1=linear)
+   SYM = 2.d0                        # Symmetry factor
+   THETA_ROT = 2.8750215077035226d0  # Char. rotational temperature [K]
+   THETA_VIB = 3393.4559799745266d0  # Char. vibrational temperature [K]
+   MODEL = RR_HO_EL                  # Internal energy model
+   NB_ELEC_LEVELS = 4                # Number of electronic levels
+   # degeneracy  energy[eV]
+   1  0.d0
+   3  0.622439e+01
+   6  0.739178e+01
+   6  0.110515e+02
+
+The ``MODEL`` field controls how internal energy, partition functions, and heat
+capacities are computed:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 45 35
+
+   * - MODEL
+     - Description
+     - Typical use
+   * - ``RR_HO_EL``
+     - Rigid rotor + harmonic oscillator + electronic (default)
+     - Molecules (MT models)
+   * - ``EL``
+     - Electronic Boltzmann only
+     - Atoms (MT models)
+   * - ``NONE`` / ``STS``
+     - State-to-state (levels as pseudo-species)
+     - CR/StS models
+   * - ``GROUP`` / ``RR_GROUP``
+     - Coarse-grained (table interpolation)
+     - CG models
+
+Kinetics Mechanism Files
+------------------------
+
+Location: ``database/kinetics/``
+
+Defines chemical reactions with modified Arrhenius rate coefficients.
+
+.. code-block:: text
+
+   Units=cm^3/(mol*s)
+
+   # Heavy-particle dissociation (processID=2 = MT with Park TTv)
+   N2+M=N+N+M:3.0E+22,-1.6d0,113200.d0,2
+   M=N,O,N2,NO,O2
+
+   # Zel'dovich exchange reactions (processID=6 = EXh)
+   NO+O=O2+N:8.4E+12,0.d0,19450.d0,6
+   N2+O=NO+N:6.4E+17,-1.d0,38400.d0,6
+
+   # Electron-impact ionization (processID=9 = Ie)
+   N+em=Np+em+em:2.5E+34,-3.82d0,168600.d0,9
+
+**Format**: ``reaction_string: A, n, c, processID``
+
+Rate coefficient: :math:`k_f(T) = A \times T^n \times \exp(-c/T)`
+
+where :math:`c = E_a / k_B`.
+
+**Key rules**:
+
+- Line 1 declares units (``Units=cm^3/(mol*s)``); the parser converts to SI
+- Third-body lines (``M=...``) follow the reaction they belong to
+- Process IDs 1--16 map to reaction types (see :ref:`architecture`)
+- **Backward rates** are never specified -- always computed via microreversibility
+
+Transfer Files
+--------------
+
+Location: ``database/transfer/``
+
+Defines the nonequilibrium temperature structure and energy transfer parameters.
+
+.. code-block:: text
+
+   NB_TVIB = 1                        # Number of vibrational temperatures
+   SIGMA_VT_MOL = CO2 CO N2           # Molecules for VT relaxation
+   SIGMA_VT = 1.d-20 3.d-22 3.d-21   # Limiting cross-sections [m^2]
+
+Transport Data Files
+--------------------
+
+Location: ``database/transport/``
+
+Collision integral data across three files:
+
+- ``HH_NN`` -- Neutral-neutral interactions (Gupta curve fits or Lennard-Jones)
+- ``HH_NI`` -- Neutral-ion interactions (Gupta fits or polarization model)
+- ``eN`` -- Electron-neutral interactions (Capitelli/Bruno or Andre fits)
+
+These are loaded automatically during ``plato_initialize()`` -- no filename
+is passed.
+
+
+Application Codes
+=================
+
+PLATO includes several standalone application codes in ``apps/``. All read
+input files in ``KEY = value`` format with ``#`` comments.
+
+.. _app_box:
+
+BOX -- Isochoric Reactor
+--------------------------
+
+Simulates a 0D chemical reactor at constant volume. Located in ``apps/ode/``.
+
+**Three modes** (set by ``MODE`` parameter):
+
+- ``ISOTHERMAL_ALL_T`` -- all temperatures fixed
+- ``ISOTHERMAL`` -- heavy temperature fixed, internal temps evolve
+- ``ADIABATIC`` -- all temperatures evolve
+
+**Input file** (``input_box``):
+
+.. code-block:: text
+
+   PATH      = /path/to/database
+   MIXTURE   = air5
+   REACTION  = air5
+   TRANSFER  = TTv
+   P0        = 1000.d0          # Initial pressure [Pa]
+   T0        = 300.d0           # Initial temperature [K]
+   COMP0     = O2 N2
+   XC0       = 0.21d0 0.79d0
+   T_BATH    = 10000.d0         # Heavy-particle bath temp [K]
+   TI_BATH   = 300.d0           # Internal bath temp [K]
+   TE_BATH   = 300.d0           # Electron bath temp [K]
+   MODE      = ISOTHERMAL
+   TS        = 0.d0             # Start time [s]
+   TE        = 1.d-3            # End time [s]
+   DT_MIN    = 1.d-14
+   DT_MAX    = 1.d-6
+   SF        = 1.01d0           # Grid stretching factor
+   ATOL      = 1.d-12
+   RTOL      = 1.d-9
+   MAX_ORDER = 5
+
+**Run**:
+
+.. code-block:: bash
+
+   cd apps/ode/testcases/box/air5_mt_isoth
+   ../../../box
+
+**Output**: ``output_box/box.dat`` -- columns: time, mole fractions, temperatures,
+density, pressure, number density, energy.
+
+.. _app_shock:
+
+SHOCK -- Post-Shock Relaxation
+-------------------------------
+
+Simulates 1D post-shock nonequilibrium flow. Space-marching from the shock front.
+
+**Input file** (``input_shock``):
+
+.. code-block:: text
+
+   PATH      = /path/to/database
+   MIXTURE   = air5
+   REACTION  = air5
+   TRANSFER  = TTv
+   P_OO      = 50.d0            # Freestream pressure [Pa]
+   T_OO      = 300.d0           # Freestream temperature [K]
+   U_OO      = 8000.d0          # Freestream velocity [m/s]
+   COMP_OO   = O2 N2
+   XC_OO     = 0.21d0 0.79d0
+   XS        = 0.d0
+   XE        = 0.3d0
+   DX_MIN    = 1.d-14
+   DX_MAX    = 5.d-3
+
+Initial conditions are computed from the Rankine-Hugoniot jump relations.
+
+**Run**:
+
+.. code-block:: bash
+
+   cd apps/ode/testcases/shock/air5_mt
+   ../../../shock
+
+**Output**: ``output_shock/shock.dat`` -- columns: position, mole fractions,
+velocity, temperatures, density, pressure, Mach number.
+
+.. _app_lagr:
+
+LAGR -- Lagrangian Flow
+------------------------
+
+Follows a fluid particle through a prescribed flow field. Requires a field file
+with columns: x [m], T_h [K], rho [kg/m^3], p [Pa], u [m/s].
+
+**Input file** (``input_lagr``):
+
+.. code-block:: text
+
+   PATH       = /path/to/database
+   MIXTURE    = nitrogen5
+   REACTION   = nitrogen5
+   TRANSFER   = TTv
+   FIELD_FILE = field_F4_nozzle.dat
+   ATOL       = 1.d-12
+   RTOL       = 1.d-9
+
+**Run**:
+
+.. code-block:: bash
+
+   cd apps/ode/testcases/lagr/nitrogen5_mt
+   ../../../lagr
+
+.. _app_gsi:
+
+GSI -- Gas-Surface Interaction
+-------------------------------
+
+Sweeps surface temperature and computes steady-state surface coverages and
+gas-surface mass fluxes.
+
+**Input file** (``input_gsi``):
+
+.. code-block:: text
+
+   PATH       = /path/to/database
+   MIXTURE    = air5_carbon
+   REACTION   = air5_carbon
+   TRANSFER   = TTv
+   GSI_REACTION = air5_gsi
+   T_BEAM     = 1000.d0
+   P_BEAM     = 2.4d-2
+   FLUX_BEAM  = 5e+20 5e+20
+   COMP_BEAM  = O N
+   T_MIN      = 800.d0
+   T_MAX      = 2000.d0
+   B_SURF     = 1.d-5            # Active site density [mol/m^2]
+
+**Output**: ``output_gsi/gsi.dat`` and ``output_gsi/gsi_qss.dat``
+
+
+Testcases
+=========
+
+PLATO ships with testcases for each application code:
+
+.. code-block:: text
+
+   apps/ode/testcases/
+   +-- box/     -- 14 testcases: MT/CR air, argon, O2, N2
+   +-- shock/   -- 4 testcases: MT air5/air11, nitrogen5, CR argon
+   +-- lagr/    -- 1 testcase: MT N2 nozzle
+   +-- gsi/     -- 2 testcases: air5 carbon, oxygen2
+
+To run a testcase:
+
+.. code-block:: bash
+
+   cd apps/ode/testcases/box/air5_mt_isoth
+   ../../../box
+
+Each testcase directory contains an input file and optionally reference solutions
+for comparison.
+
+
+Common Patterns
+===============
+
+Initializing PLATO from External Code
+--------------------------------------
+
+.. code-block:: fortran
+
+   use plato_library_interface, only: plato_initialize, plato_finalize, &
+                                      plato_get_nb_species, plato_get_nb_comp
+
+   call plato_initialize('my_solver', 'air5', 'air5', 'TTv', &
+                         '/path/to/database')
+
+   ! ... use PLATO routines ...
+
+   call plato_finalize()
+
+Arguments:
+
+1. ``solver`` -- Name of calling program (for diagnostics)
+2. ``mixture`` -- Mixture file name (in ``database/mixture/``)
+3. ``kinetics`` -- Kinetics mechanism file (in ``database/kinetics/``)
+4. ``transfer`` -- Nonequilibrium model file (in ``database/transfer/``)
+5. ``path`` -- Path to the database directory
+
+Computing Transport Properties
+------------------------------
+
+.. code-block:: fortran
+
+   use plato_library_interface, only: kd => kd_r8, &
+     plato_get_transp_coeff, plato_get_dyn_vis
+
+   real(kd) :: mu, sigma_e, Dij(nb_sp*(nb_sp+1)/2)
+   real(kd) :: lambda(nb_temp), Di(nb_comp)
+
+   ! All-in-one:
+   call plato_get_transp_coeff(nd, Xi, temp, mu, sigma_e, lambda, Di, Dij)
+
+   ! Or individually:
+   mu = plato_get_dyn_vis(nd, Th, Te, Xi)
+
+ODE Integration Pattern
+------------------------
+
+All application codes follow the same ODE integration workflow:
+
+.. code-block:: fortran
+
+   ! Configure solver
+   call plato_pre_initialize_ode_integrator(ode_set, nb_ipar, nb_rpar, &
+     nb_eq, 'BDF', 'US', 5, atol, rtol)
+
+   ! Set initial conditions
+   call plato_initialize_ode_integrator(nb_eq, time0, z0)
+
+   ! Time-march
+   do i = 2, nb_pts
+     call plato_evolve_ODE(nb_ipar, nb_rpar, nb_eq, ipar, rpar, z, &
+                           time0, time(i))
+   end do
+
+   ! Post-process
+   call plato_post_process_solution(path, nb_eq, nb_dim, nb_pts, &
+                                    xsol, zsol, write_bin_pop)
+
+Jacobian options for the ``miter`` argument:
+
+- ``'US'`` -- user-supplied analytical Jacobian (recommended for accuracy)
+- ``'FD'`` -- finite-difference Jacobian (easier but slower)
+
+
+Environment Variables
+=====================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Variable
+     - Purpose
+   * - ``PLATO_DIR``
+     - Install prefix (passed to ``--prefix``)
+   * - ``PLATO_INC``
+     - Include/module install directory
+   * - ``SUNDIALS_DIR``
+     - SUNDIALS/CVODE install root
+   * - ``OBLAS_DIR``
+     - OpenBLAS install root

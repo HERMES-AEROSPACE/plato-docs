@@ -1,0 +1,42 @@
+.. _examples_guide:
+
+===============
+Examples Guide
+===============
+
+This guide provides self-contained examples that demonstrate PLATO's core
+capabilities. Each example includes the physical context, input files,
+commands to run, expected output, and plots.
+
+All examples use the ``plato_equil`` utility or the ODE application codes
+built during the standard PLATO build process. The database path should point
+to your local ``database/`` directory.
+
+.. note::
+
+   Before running any example, ensure PLATO is built with CMake:
+
+   .. code-block:: bash
+
+      mkdir build && cd build
+      cmake .. -DPLATO_ENABLE_OPTIM=ON -DPLATO_ENABLE_NASA_POLY=ON
+      make -j$(nproc)
+
+   For examples involving transport properties, no additional flags are needed.
+   For examples comparing NASA polynomial and partition function paths, the
+   ``-DPLATO_ENABLE_NASA_POLY=ON`` flag is required.
+
+
+.. toctree::
+   :maxdepth: 1
+   :numbered:
+   :caption: Examples
+
+   ex01_air5_equilibrium
+   ex02_air11_equilibrium
+   ex03_pressure_effects
+   ex04_transport
+   ex05_box_reactor
+   ex06_shock
+   ex07_thermo_potentials
+   ex08_validation

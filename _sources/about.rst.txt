@@ -1,0 +1,180 @@
+.. _about:
+
+==============
+About PLATO
+==============
+
+What is PLATO?
+==============
+
+**PLATO** (PLAsmas in Thermodynamic nOn-equilibrium) is a high-fidelity library
+for the thermodynamics, transport, and collisional-radiative kinetics of
+equilibrium and nonequilibrium multicomponent gases and plasmas.
+
+- **Language**: Fortran 2003/2008, with C and C++ APIs
+- **Build system**: GNU Autotools (autoconf, automake, libtool)
+- **Compilers tested**: GCC (gfortran) and Intel Fortran (ifort/ifx)
+- **Reference paper**: Munafo & Panesi, *J. Thermophysics and Heat Transfer*,
+  Vol. 39, No. 4, 2025. DOI: `10.2514/1.T7097 <https://doi.org/10.2514/1.T7097>`_
+
+
+Key Differentiator
+==================
+
+Unlike EGLIB, MUTATION, MUTATION++, SPARK, CANTERA, or KAPPA, PLATO provides
+within a **single library** a hierarchy of physicochemical models of increasing
+complexity:
+
+- Legacy **multitemperature** (MT) models (Park-style)
+- **Coarse-grained** (CG) reduced-order models
+- **Collisional-radiative** (CR) and full **state-to-state** (StS) models
+
+
+Theoretical Foundation
+======================
+
+PLATO is based on **nonequilibrium kinetic theory for dilute gases**
+(Chapman--Enskog method for the Boltzmann equation). Key assumptions:
+
+- Semiclassical framework: classical translational energy, quantum internal energy
+- Quasi-neutral, collision-dominated plasmas leading to a hydrodynamic formulation
+- Unmagnetized plasma (small electron Hall parameter)
+- Maxwellian reaction regime (transport unaffected by inelastic collisions,
+  except resonant charge transfer)
+- First-order Chapman--Enskog expansion at the Navier--Stokes level
+
+
+Primary Consumers
+=================
+
+PLATO serves as the physicochemical modeling backbone for several solvers:
+
+- **HEGEL** -- CHESS in-house finite volume CFD solver (MIT-licensed)
+- **FLUX** -- Electromagnetic solver
+- **MURP** -- Radiation transport solver
+- **CHyPS** -- Material response solver
+- Various external codes via C/C++ API (e.g., HyperCode)
+- Solver coupling via **preCICE** library
+
+
+Team
+====
+
+- **Alessandro Munafo** -- Original developer, corresponding author
+- **Marco Panesi** -- PI, co-developer
+- **Meini** -- Current PLATO integration lead
+- **Claudio** -- HEGEL integration lead
+
+
+Code Structure
+==============
+
+.. code-block:: text
+
+   plato/
+   +-- src/                    # Library source code (154 .F90 files, 6 .c, 1 .cxx)
+   |   +-- driver/             # Library init/finalize
+   |   +-- general/            # Runtime data and physical constants
+   |   +-- interface/          # Primary Fortran API
+   |   +-- interface_c/        # C API wrapper (via iso_c_binding)
+   |   +-- interface_cpp/      # C++ API wrapper
+   |   +-- c/                  # C code with GSL bindings
+   |   +-- post_process/       # Post-processing (internal temp extraction)
+   |   +-- utils/              # File parsing, string ops, interpolation
+   |   +-- kinetics/           # Mass production terms, energy exchange, Jacobians
+   |   +-- kinetics_gsi/       # Gas-surface interaction (GSI) kinetics
+   |   +-- kinetics_lpi/       # Laser-plasma interaction kinetics
+   |   +-- numerics/           # Linear system solvers
+   |   +-- ode_integrator/     # ODE systems + LSODE/CVODE wrappers
+   |   +-- proj_rom/           # Projected reduced-order models
+   |   +-- radiation/          # Radiative properties: atomic/molecular
+   |   +-- thermo/             # Thermodynamic properties (LTE & NLTE)
+   |   +-- thermo_gsi/         # Gas-surface interaction thermodynamics
+   |   +-- transport/          # Transport properties and fluxes
+   +-- apps/                   # Application executables
+   |   +-- ode/                # BOX, SHOCK, LAGR, GSI solvers
+   |   +-- fit/                # Arrhenius rate fitting tool
+   |   +-- lpi/                # Laser-plasma dielectric properties
+   |   +-- lte/                # LTE lookup table generation
+   |   +-- spec/               # Spectroscopic utilities
+   +-- include/                # C/C++ header files (15 .h files)
+   +-- test/                   # Test suites (Fortran, C, C++)
+   +-- database/               # External database (separate repo)
+
+
+Build System and Dependencies
+=============================
+
+Minimum Requirements
+--------------------
+
+- **Fortran compiler**: gfortran (GCC) or ifort/ifx (Intel)
+- **C/C++ compilers**: gcc/g++ or icx/icpx
+- **GNU Autotools**: autoconf (>= 2.69), automake (>= 1.12.3), libtool
+
+Optional Libraries
+------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 25 35 20
+
+   * - Library
+     - Configure flag
+     - Purpose
+     - Preprocessor define
+   * - SUNDIALS (CVODE)
+     - ``--with-cvode=PATH``
+     - Stiff ODE integration (CR/StS kinetics)
+     - ``PLATO_HAVE_CVODE``
+   * - OpenBLAS
+     - ``--with-oblas=PATH``
+     - High-performance LAPACK for CVODE
+     - ``PLATO_HAVE_OBLAS``
+   * - GSL
+     - ``--with-gsl=PATH``
+     - Cross-section fitting, Arrhenius fitting
+     - ``PLATO_HAVE_GSL``
+
+
+Build Commands
+--------------
+
+.. code-block:: bash
+
+   # 1. Bootstrap autotools (only needed once)
+   bash autogen.sh
+
+   # 2. Configure (pick one)
+   # Minimal (optimized, no optional libs):
+   ./configure FC=gfortran F77=gfortran CC=gcc CXX=g++ --enable-optim
+
+   # Debug mode:
+   ./configure FC=gfortran F77=gfortran CC=gcc CXX=g++ --enable-debug
+
+   # Full-featured:
+   ./configure FC=gfortran F77=gfortran CC=gcc CXX=g++ --enable-optim \
+     --enable-table --enable-cache --enable-nasa_poly \
+     --with-cvode=$SUNDIALS_DIR --with-oblas=$OBLAS_DIR --with-gsl=$GSL_DIR \
+     --prefix=$PLATO_DIR
+
+   # 3. Build (MUST use sequential make)
+   make
+
+   # 4. Install (optional)
+   make install
+
+.. warning::
+
+   **No parallel builds.** ``make -j`` will fail due to undeclared Fortran
+   module dependencies. Always use plain ``make`` (sequential).
+
+
+Future Directions
+=================
+
+1. Magnetized plasmas
+2. Non-Boltzmann electrons
+3. Machine-learning-based reduced-order models
+4. Gas--surface interactions (ablation) -- *partially implemented* in
+   ``kinetics_gsi/``, ``thermo_gsi/``, and ``apps/ode/`` (GSI mode)

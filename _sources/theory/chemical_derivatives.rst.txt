@@ -1,0 +1,391 @@
+.. _theory_chemical_derivatives:
+
+====================
+Chemical Derivatives
+====================
+
+Chemical derivatives are partial derivatives of equilibrium mole
+fractions :math:`X_c` with respect to the thermodynamic state variables
+:math:`(T, p, X_e, Y_e)` that define the equilibrium problem. They
+quantify how an equilibrium mixture rearranges itself in response to
+an infinitesimal change in state, and appear throughout the modeling
+of transport in equilibrium plasmas — whenever a gradient in
+temperature, pressure, or elemental composition drives a species
+gradient that in turn drives diffusion.
+
+The derivation in PLATO follows the analytical formulation of
+[Orsini2008]_. The implementation resides in
+``src/thermo/thermo_equilibrium_deriv.F90`` and is **solver-agnostic**:
+it takes a converged equilibrium state :math:`(p, T, X_c)` as input
+and does not depend on which solver (Newton or GFC, see
+:ref:`theory_equilibrium`) produced it.
+
+Historically, chemical derivatives were computed by **finite
+differences**: evaluate the equilibrium composition at two or more
+perturbed states and form a difference quotient. This approach is
+computationally expensive (each derivative requires at least one
+additional equilibrium solve) and prone to numerical error from the
+cancellation between nearly-equal compositions. PLATO's analytical
+formulation bypasses both costs.
+
+
+Problem Formulation
+===================
+
+When an equilibrium flow field exhibits gradients in temperature,
+pressure, or elemental composition, the resulting species gradients
+decompose into contributions from each state variable [Orsini2008]_
+(Eq. 28):
+
+.. math::
+   :label: eq_deriv_decomposition
+
+   \nabla X_c = \sum_{e=1}^{n_{\mathrm{elem}}}
+                \frac{\partial X_c}{\partial X_e} \nabla X_e
+              + p \frac{\partial X_c}{\partial p} \nabla \ln p
+              + T \frac{\partial X_c}{\partial T} \nabla \ln T.
+
+PLATO computes each of the partial derivatives on the right-hand side
+analytically, at machine precision, from a single equilibrium state.
+
+
+Notation and Component Partition
+--------------------------------
+
+The derivation partitions the :math:`n_{\mathrm{comp}}` components into
+
+- :math:`n_{\mathrm{elem}}` **independent** components, indexed by
+  :math:`p, q`: a basis from which every other component can be formed
+  as a linear combination;
+
+- :math:`n_{\mathrm{react}} = n_{\mathrm{comp}} - n_{\mathrm{elem}}`
+  **dependent** components, indexed by :math:`r, s`: written as
+  reaction products of the independent components.
+
+For high-temperature air with
+:math:`\mathcal{S} = \{e^-, \mathrm{N}, \mathrm{O}, \mathrm{N}_2,
+\mathrm{O}_2, \mathrm{N}^+, \mathrm{O}^+\}`, a natural choice of
+independent components matches the elements:
+:math:`\mathcal{I} = \{e^-, \mathrm{N}, \mathrm{O}\}`. The remaining
+components are dependent.
+
+The stoichiometric matrix :math:`\nu_{ec}` (introduced in
+:ref:`theory_equilibrium`) gives the number of atoms of element
+:math:`e` in component :math:`c`; for the dependent components
+:math:`r`, the same matrix entries describe :math:`r` as a reaction
+product of the independent set.
+
+
+Law of Mass Action in Differential Form
+---------------------------------------
+
+For each dependent reaction :math:`r`, equilibrium mole fractions obey
+the law of mass action :eq:`eq_mass_action`. Differentiating with
+respect to each of the independent variables :math:`(T, p, X_e)` and
+applying the van 't Hoff relation for
+:math:`\partial \ln K_r / \partial T` yields three sets of equations,
+one per variable. These are combined with the chain-rule constraints
+obtained by differentiating the element-composition relation
+:math:`X_e = \sum_c \nu_{ec} X_c` ([Orsini2008]_, Eq. 13) to produce
+linear systems for the derivatives of the independent components. The
+derivatives of the dependent components are then obtained by
+back-substitution into the differentiated mass-action equations.
+
+
+The Shared Jacobian
+===================
+
+All four PLATO derivative outputs — with respect to temperature,
+pressure, element molar fractions, and element mass fractions — share
+the **same coefficient matrix**. They differ only in their right-hand
+sides. Following [Orsini2008]_ (Eq. 21), the matrix is
+
+.. math::
+   :label: eq_deriv_jacobian
+
+   A_{ep} = \hat{a}_{pe}
+          + \sum_r \hat{a}_{re} \, \frac{X_r}{X_p} \, \nu_{pr},
+
+of dimension :math:`n_{\mathrm{elem}} \times n_{\mathrm{elem}}` — the
+number of *elements*, not components, which is typically one to two
+orders of magnitude smaller than a naive component-level system.
+
+The chemical coefficients :math:`\hat{a}_{ce}` are
+
+.. math::
+   :label: eq_chem_coeffs
+
+   \hat{a}_{ce} = a_{ce} + \eta_e,
+   \qquad
+   a_{ce} = \frac{\nu_{ce} - X_e \sum_f \nu_{cf}}
+                 {\sum_c \left(\sum_f \nu_{cf}\right) X_c},
+
+with :math:`\eta_e` a gauge freedom discussed below
+(:ref:`deriv_gauge`).
+
+In PLATO, the matrix :math:`A_{ep}` is assembled once per equilibrium
+state and LU-factorized via LAPACK. All four derivative types then
+reuse the factorization, so that each additional derivative costs only
+a back-substitution — far less than even a single finite-difference
+equilibrium evaluation.
+
+
+The Four Right-Hand Sides
+=========================
+
+Each derivative type has its own right-hand side. In
+``thermo_equilibrium_deriv.F90``, the assembly of :math:`A_{ep}`, its
+factorization, and the chain-rule back-substitution are extracted into
+shared helpers (``assemble_eq_deriv_jacobian`` and
+``solve_and_unpack``). Only the RHS construction is
+derivative-type-specific.
+
+
+Temperature Derivative
+----------------------
+
+Differentiating the law of mass action with respect to :math:`T` and
+using the van 't Hoff relation gives [Orsini2008]_ (Eq. 20):
+
+.. math::
+   :label: eq_rhs_T
+
+   \sum_p A_{ep} \, \frac{\partial X_p}{\partial T}
+     = -\frac{1}{T} \sum_r \hat{a}_{re} \, X_r \,
+        \frac{\Delta h_r}{R_u T},
+
+where :math:`\Delta h_r = h_r - \sum_p \nu_{pr} h_p` is the enthalpy
+of reaction :math:`r` per mole of product, and :math:`h_c` are the
+pure-component enthalpies. Condensed components contribute zero
+because their :math:`\partial \ln X / \partial T` from the law of mass
+action vanishes.
+
+
+Pressure Derivative
+-------------------
+
+Differentiating the law of mass action with respect to :math:`p`
+gives [Orsini2008]_ (Eq. 19):
+
+.. math::
+   :label: eq_rhs_p
+
+   \sum_p A_{ep} \, \frac{\partial X_p}{\partial p}
+     = -\frac{1}{p} \sum_r \hat{a}_{re} \, X_r \,
+        (\nu_r - 1/n_{\mathrm{elem}}),
+
+where :math:`\nu_r = \sum_p \nu_{pr}` is the net stoichiometric change
+for reaction :math:`r`. Condensed components contribute zero, mirroring
+their treatment in the temperature derivative.
+
+
+Element Molar-Fraction Derivative
+---------------------------------
+
+Differentiating the element-composition relation
+:math:`X_e = \sum_c \nu_{ec} X_c` with respect to a different element
+molar fraction :math:`X_f` and combining with the differentiated law
+of mass action gives [Orsini2008]_ (Eq. 18):
+
+.. math::
+   :label: eq_rhs_xelem
+
+   \sum_p A_{ep} \, \frac{\partial X_p}{\partial X_f}
+     = \delta_{ef} - X_e,
+
+where :math:`\delta_{ef}` is the Kronecker delta. This RHS is purely
+geometric — it does not depend on component enthalpies or Gibbs
+energies — and the resulting derivative matrix has shape
+:math:`n_{\mathrm{comp}} \times n_{\mathrm{elem}}`.
+
+
+Element Mass-Fraction Derivative
+--------------------------------
+
+The mass-fraction derivatives are obtained from the molar-fraction
+derivatives by chain rule [Orsini2008]_ (Eqs. 22--27):
+
+.. math::
+   :label: eq_rhs_yelem
+
+   \frac{\partial X_c}{\partial Y_e}
+     = \sum_f \frac{\partial X_c}{\partial X_f}
+       \frac{\partial X_f}{\partial Y_e},
+
+with
+
+.. math::
+
+   \frac{\partial X_e}{\partial Y_f}
+     = (\delta_{ef} - X_e) \, \frac{X_e}{Y_e}.
+
+In PLATO, this derivative is computed by forming the element-direct
+RHS rather than composing two derivatives after the fact. This choice
+is motivated by numerical conditioning and by the need to match the
+Mutation++ convention of returning an
+:math:`n_{\mathrm{comp}} \times n_{\mathrm{elem}}` matrix whose last
+column is filled via sum-rule closure.
+
+
+.. _deriv_gauge:
+
+Gauge Conventions
+=================
+
+The chemical-coefficient offset :math:`\eta_e` in
+:eq:`eq_chem_coeffs` is a gauge freedom: the final derivatives
+:math:`\partial X_c / \partial X_e` are gauge-invariant *provided* the
+associated sum-rule closure is applied consistently downstream. PLATO
+exposes two gauges through two separate derivative outputs:
+
+- The **Orsini symmetric gauge** (``dXdxelem``). Uses
+
+  .. math::
+
+     \eta_e = -\frac{1}{n_{\mathrm{elem}} \, n_{\mathrm{comp}}}
+              \sum_c a_{ce}
+
+  ([Orsini2008]_, Section III.A). Produces derivatives that satisfy
+  the symmetric constraint
+  :math:`\sum_c \partial X_c / \partial X_e = 0`. This is the
+  convention of the published Orsini paper and of the dominant
+  equilibrium-chemistry literature.
+
+- The **Mutation++ "last-element-absorbs" gauge** (``dXdYe``). Uses
+  :math:`\eta_e = 0` and fills the last column of the
+  :math:`n_{\mathrm{comp}} \times n_{\mathrm{elem}}` output matrix
+  via the sum rule :math:`\sum_e \partial X_c / \partial Y_e = 0`.
+  Matches the Mutation++ public API and is the convention most
+  commonly expected by downstream transport codes.
+
+Both gauges represent the same underlying tensor and produce
+equivalent results when correctly consumed. PLATO returns both because
+different downstream consumers expect different conventions, and
+converting between them requires knowledge of the component–element
+incidence that a consumer may not wish to reimplement. Internal
+parity tests confirm that the two representations satisfy the expected
+chain-rule consistency to :math:`10^{-12}`.
+
+
+Domain of Validity
+==================
+
+Chemical derivatives are evaluated at a prescribed state
+:math:`(p, T, X_c)` that must itself be a valid equilibrium state.
+Two boundary conditions affect this.
+
+
+Minimum Temperature
+-------------------
+
+The equilibrium solvers silently clamp requested temperatures to
+:math:`T_{\min} = 300` K in their internal composition routine. For
+derivatives, PLATO enforces this boundary **explicitly**: requests for
+any derivative at :math:`T < T_{\min}` return zero, at every primitive
+entry point (analytical and finite-difference, all four derivative
+types).
+
+This explicit guard prevents a silently incoherent result in which the
+composition is evaluated at :math:`T_{\min}` by the equilibrium routine
+while the derivative scaling uses the requested :math:`T`. The guard
+returns cleanly; downstream consumers receive zero derivatives, not a
+hybrid value combining clamped composition with uncontrolled scaling.
+
+
+NASA-9 Polynomial Extrapolation
+-------------------------------
+
+The thermodynamic database used by PLATO (NASA-9 polynomials
+[McBride2002]_) is calibrated on specific temperature intervals.
+Outside these intervals, the polynomials are extrapolated silently,
+and their derivatives likewise. This is a property of the database,
+not of the solvers, and is the same behavior exhibited by Mutation++,
+CEA, and STANJAN. Users requesting derivatives at extreme temperatures
+should verify their thermodynamic database coverage.
+
+
+Verification
+============
+
+PLATO's analytical chemical derivatives are verified against two
+independent references:
+
+1. **Internal finite-difference cross-check.** Every analytical
+   derivative has a centered finite-difference counterpart computed
+   through the same public API with ``method = FD``. Agreement is
+   enforced to :math:`10^{-6} \cdot X_{\max}` on nuclear-element
+   columns of the derivative matrix and to absolute tolerance on the
+   electron column (whose scale can differ from the nuclear columns
+   by several orders of magnitude at high temperature).
+
+2. **External Orsini reference.** The regression test
+   ``test/Fortran/regression/orsini_2008.F90`` reproduces the
+   numerical example of [Orsini2008]_ (high-temperature air,
+   :math:`p = 1` atm, elemental fractions
+   :math:`(X_{e^-}, X_\mathrm{N}, X_\mathrm{O}) = (0, 0.8, 0.2)`)
+   at :math:`T = 7000` K and :math:`T = 14000` K. Reference values are
+   hand-digitized from [Orsini2008]_ Figs. 2--6. Absolute tolerances
+   of 0.02--0.15 reflect the precision floor of the digitization, not
+   of the analytical method.
+
+3. **Full-range visual sweep.** A companion test
+   (``test/Fortran/regression/orsini_sweep.F90`` +
+   ``orsini_plot.py``) reproduces [Orsini2008]_ Figs. 2--6 visually
+   for both solvers over :math:`T = 200` to :math:`20\,000` K. Newton
+   and GFC produce bit-identical derivative values at every
+   temperature in the sweep.
+
+Additional internal consistency tests — bit-identity between the
+default API and the explicit analytical method, sum-rule consistency
+at machine epsilon, chain-rule consistency between ``dXdYe`` and
+``dXdxelem`` at :math:`10^{-12}`, and activation of both the
+charge-balance guard and the :math:`T_{\min}` guard as regression
+checks — are committed to the test suite.
+
+
+Public API
+==========
+
+.. code-block:: fortran
+
+   ! Unified entry point for all four derivative types
+   call plato_get_eq_composition_derivatives(                       &
+        p, T, Xi,                                                   &
+        method,                                                     &
+        dXdT     = dXdT,                                            &
+        dXdP     = dXdP,                                            &
+        dXdYe    = dXdYe,                                           &
+        dXdxelem = dXdxelem                                         &
+   )
+
+**Arguments:**
+
+- ``p`` — pressure [Pa]
+- ``T`` — temperature [K] (must satisfy :math:`T \geq T_{\min}` for
+  non-zero output)
+- ``Xi(nb_species)`` — species mole fractions at the equilibrium
+  state
+- ``method`` — ``ANALYTICAL`` (default) or ``FD``
+- ``dXdT(nb_species)`` — optional, temperature derivative
+- ``dXdP(nb_species)`` — optional, pressure derivative
+- ``dXdYe(nb_species, nb_elem)`` — optional, element mass-fraction
+  derivative, Mutation++ gauge
+- ``dXdxelem(nb_species, nb_elem)`` — optional, element molar-fraction
+  derivative, Orsini symmetric gauge
+
+All four derivative outputs are optional; only those requested are
+computed. The Jacobian is assembled and factorized once regardless of
+how many derivatives are requested.
+
+
+.. rubric:: References
+
+.. [Orsini2008] A. Orsini, "Analytical formulation of chemical
+   derivatives in equilibrium plasma flows," *Physical Review E*,
+   Vol. 78, No. 6, 066304, 2008. DOI:
+   `10.1103/PhysRevE.78.066304
+   <https://doi.org/10.1103/PhysRevE.78.066304>`_
+
+.. [McBride2002] B.J. McBride, M.J. Zehe, and S. Gordon, "NASA Glenn
+   Coefficients for Calculating Thermodynamic Properties of Individual
+   Species," NASA TP 2002-211556, 2002.

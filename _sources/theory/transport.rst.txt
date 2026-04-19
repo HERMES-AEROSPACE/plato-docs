@@ -1,0 +1,545 @@
+.. _theory_transport:
+
+=====================
+Transport Properties
+=====================
+
+This chapter describes the computation of viscosity, thermal conductivity,
+diffusion coefficients, and electrical conductivity in PLATO. The theory
+follows the **Chapman--Enskog (CE) method** applied to the Boltzmann equation
+for multi-component mixtures, as detailed in [Magin_thesis]_ (Chapters 1 and
+4) and [Munafo_thesis]_ (Chapter 2). The implementation resides in
+``src/transport/`` (18 source files).
+
+
+.. _transport_ce_overview:
+
+The Chapman--Enskog Method
+==========================
+
+The CE method derives macroscopic transport equations (Navier--Stokes) from
+the microscopic Boltzmann equation by exploiting a **separation of time
+scales**: elastic collisions are frequent (fast), while inelastic and
+reactive collisions are rare (slow).
+
+The procedure, following [Magin_thesis]_ (Secs. 1.2--1.4), proceeds as:
+
+1. **Expand** the velocity distribution function around the local Maxwellian:
+
+   .. math::
+
+      f_i = f_i^{(0)} (1 + \epsilon \, \phi_i + \ldots)
+
+   where :math:`\epsilon` plays the role of the Knudsen number.
+
+2. **Zeroth order** (:math:`\epsilon^0`): The distribution is a Maxwellian
+   at the local mass-averaged velocity and temperature. For a
+   two-temperature plasma [Magin_thesis]_ (Eq. 1.39):
+
+   .. math::
+
+      f_i^{(0)} = n_i \left(\frac{m_i}{2\pi k_{\mathrm{B}} T_i}\right)^{3/2}
+      \exp\!\left(-\frac{m_i C_i^2}{2 k_{\mathrm{B}} T_i}\right)
+
+   where :math:`T_i = T_h` for heavy particles and :math:`T_i = T_e` for
+   electrons, and :math:`\mathbf{C}_i = \mathbf{c}_i - \mathbf{v}` is the
+   peculiar velocity.
+
+3. **First order** (:math:`\epsilon^1`): The perturbation :math:`\phi_i` is
+   decomposed into contributions driven by gradients of velocity, temperature,
+   and composition [Munafo_thesis]_ (Eq. 2.32):
+
+   .. math::
+
+      \phi_i = -\boldsymbol{\phi}_i^{\eta} : \nabla\mathbf{v}
+      - \boldsymbol{\phi}_i^{\lambda} \cdot \nabla \ln T
+      - \sum_j \boldsymbol{\phi}_i^{D_j} \cdot \mathbf{d}_j
+
+   Each unknown function satisfies a linear integral equation with the
+   **linearized Boltzmann collision operator**.
+
+4. **Solve** the integral equations by expanding :math:`\phi_i` in
+   **Laguerre--Sonine (associated Laguerre) polynomials** and projecting
+   onto a finite basis. This converts the integral equations into
+   **linear algebraic systems** whose matrix elements involve collision
+   integrals.
+
+5. **Extract** transport coefficients (viscosity, conductivity, diffusion)
+   from the solutions of these linear systems.
+
+The resulting transport coefficients are expressed as solutions of linear
+systems of dimension :math:`O(n_{\mathrm{comp}})`, where
+:math:`n_{\mathrm{comp}}` is the number of chemical components. All
+systems in PLATO are solved by **direct methods** (Cholesky or LU),
+inherited from the EGLIB library [Ern1994]_. No external LAPACK is required.
+
+
+.. _transport_coll_int:
+
+Collision Integrals
+===================
+
+Collision integrals :math:`\bar{Q}^{(\ell,s)}_{ij}` encode the microscopic
+details of binary interactions. They are Maxwellian-averaged transport
+cross-sections [Magin_thesis]_ (Eq. 3.1):
+
+.. math::
+   :label: eq_coll_int_def
+
+   \bar{Q}_{ij}^{(\ell,s)}(T) =
+   \frac{4(\ell+1)}{(s+1)!\,[2\ell+1-(-1)^\ell]}
+   \frac{1}{(k_{\mathrm{B}} T)^{s+2}}
+   \int_0^\infty e^{-E/(k_{\mathrm{B}} T)} \, E^{s+1} \, Q_{ij}^{(\ell)}(E) \, dE
+
+where :math:`E = \frac{1}{2} \mu_{ij} g^2` is the relative kinetic energy,
+:math:`\mu_{ij} = m_i m_j / (m_i + m_j)` is the reduced mass, and
+:math:`Q_{ij}^{(\ell)}` is the transport cross-section of order :math:`\ell`:
+
+.. math::
+
+   Q_{ij}^{(\ell)}(E) = 2\pi \int_0^\infty
+   \left[1 - \cos^\ell \chi(E, b)\right] \, b \, db
+
+with :math:`\chi(E, b)` the deflection angle for a collision at energy *E*
+and impact parameter *b* [Magin_thesis]_ (Eqs. 3.2--3.3).
+
+Physically:
+
+- :math:`\bar{Q}^{(1,1)}` governs **diffusion** (momentum transfer)
+- :math:`\bar{Q}^{(2,2)}` governs **viscosity** (shear transfer)
+- Higher orders :math:`\bar{Q}^{(1,2)}, \bar{Q}^{(1,3)}` appear in the
+  thermal conductivity and thermal diffusion matrix elements
+
+
+Collision Integral Ratios
+--------------------------
+
+Three dimensionless ratios appear frequently in the transport matrix
+elements [Munafo_thesis]_ (Eqs. 2.63, 2.68), [Magin_thesis]_ (Eqs. B.4):
+
+.. math::
+   :label: eq_Astar
+
+   A_{ij}^* = \frac{\bar{Q}_{ij}^{(2,2)}}{\bar{Q}_{ij}^{(1,1)}}, \qquad
+   B_{ij}^* = \frac{5 \bar{Q}_{ij}^{(1,2)} - 4 \bar{Q}_{ij}^{(1,3)}}
+   {\bar{Q}_{ij}^{(1,1)}}, \qquad
+   C_{ij}^* = \frac{\bar{Q}_{ij}^{(1,2)}}{\bar{Q}_{ij}^{(1,1)}}
+
+For rigid spheres, :math:`A^* = 1`, :math:`B^* = 1`, :math:`C^* = 1`.
+For realistic potentials, these ratios vary with temperature and
+characterize the angular dependence of scattering.
+
+
+Interaction Models
+-------------------
+
+PLATO supports several interaction models, selected by the database:
+
+.. list-table::
+   :widths: 25 20 35
+   :header-rows: 1
+
+   * - Model
+     - Interaction Type
+     - Source
+   * - Gupta--Yos curve fits (default)
+     - N--N, N--I, e--N
+     - ``database/transport/`` files
+   * - Lennard-Jones
+     - N--N
+     - Hard-coded tables
+   * - Polarization / Langevin
+     - I--N
+     - Analytical + charge exchange
+   * - Screened Coulomb (Debye--Hückel)
+     - e--e, e--I, I--I
+     - Computed at runtime
+
+At initialization, neutral and electron--heavy collision integrals are
+precomputed on a uniform temperature grid (200--100\,200 K) and stored
+as lookup tables. At runtime, **linear interpolation** is used.
+
+Charged--charged integrals are computed analytically using polynomial fits
+to the Mason--Munn--Smith screened-Coulomb data, with the Debye length
+evaluated at the local plasma conditions.
+
+Source: ``src/transport/transport_coll_int_neut.F90``,
+``src/transport/transport_utils_coll_int_sc.F90``.
+
+
+.. _transport_diffusion:
+
+Binary Diffusion Coefficients
+==============================
+
+The first-order CE binary diffusion coefficient [Munafo_thesis]_ (Eq. 2.64),
+[Magin_thesis]_ (Eq. B.3b):
+
+.. math::
+   :label: eq_Dij
+
+   n D_{ij} = \frac{3}{16} \sqrt{\frac{2\pi k_{\mathrm{B}} T (m_i + m_j)}
+   {m_i m_j}} \frac{1}{\bar{Q}_{ij}^{(1,1)}}
+
+where *n* is the total number density. For electron--heavy interactions,
+:math:`T \to T_e` and the reduced mass simplifies to :math:`\approx m_e`
+[Magin_thesis]_ (Eq. B.6b).
+
+Source: ``src/transport/transport_matrix.F90``, lines 47--97.
+
+
+.. _transport_viscosity:
+
+Dynamic Viscosity
+=================
+
+Species Viscosity
+-----------------
+
+The first-order CE viscosity of a pure species [Munafo_thesis]_ (Eq. 2.59),
+[Magin_thesis]_ (Eq. B.5):
+
+.. math::
+   :label: eq_mu_species
+
+   \eta_i = \frac{5}{16} \frac{\sqrt{\pi m_i k_{\mathrm{B}} T_h}}
+   {\bar{Q}_{ii}^{(2,2)}}
+
+
+Mixture Viscosity
+-----------------
+
+The mixture viscosity is obtained from a symmetric linear system of
+dimension :math:`n_h` (heavy particles only) [Munafo_thesis]_ (Eq. 2.56):
+
+.. math::
+   :label: eq_mu_system
+
+   \sum_{j \in H} G_{ij}^{\eta} \, \alpha_j^{\eta} = X_i, \qquad
+   \eta = \sum_{i \in H} \alpha_i^{\eta} \, X_i
+
+The matrix elements (first-order Sonine) are [Munafo_thesis]_ (Eqs.
+2.57--2.58), [Magin_thesis]_ (Eqs. C.6a--b):
+
+**Off-diagonal** (:math:`i \neq j`):
+
+.. math::
+   :label: eq_G_mu_offdiag
+
+   G_{ij}^{\eta} = \frac{X_i X_j}{n D_{ij} (m_i + m_j)}
+   \left(\tfrac{6}{5} A_{ij}^* - 2\right)
+
+**Diagonal:**
+
+.. math::
+   :label: eq_G_mu_diag
+
+   G_{ii}^{\eta} = \frac{X_i^2}{\eta_i}
+   + \sum_{j \neq i} \frac{X_i X_j}{n D_{ij} (m_i + m_j)}
+   \left(\tfrac{6}{5} \frac{m_j}{m_i} A_{ij}^* + 2\right)
+
+The system is solved by **Cholesky decomposition** (``solve_sym_linsys``
+from ``src/numerics/``).
+
+.. note::
+
+   In the source code (``src/transport/transport_matrix.F90``, lines
+   134--166), the matrix elements are assembled using the factor
+   :math:`0.6 A^* = \tfrac{3}{5} A^*`. The off-diagonal element is
+   computed as ``fac*(-1 + 0.6*A*)`` which equals
+   :math:`(\tfrac{6}{5} A^* - 2)/2` times the common factor --- this is
+   equivalent to :eq:`eq_G_mu_offdiag` after accounting for the different
+   grouping of constants.
+
+
+.. _transport_conductivity:
+
+Thermal Conductivity
+====================
+
+PLATO computes three contributions to the total thermal conductivity:
+
+.. math::
+   :label: eq_lambda_total
+
+   \lambda = \lambda_h^{\mathrm{tr}} + \lambda^{\mathrm{int}} + \lambda_e
+
+
+Heavy Translational Conductivity
+---------------------------------
+
+Computed from a symmetric :math:`n_h \times n_h` system analogous to
+viscosity [Munafo_thesis]_ (Eq. 2.60):
+
+.. math::
+   :label: eq_lambda_system
+
+   \sum_{j \in H} G_{ij}^{\lambda} \, \alpha_j^{\lambda} = X_i, \qquad
+   \lambda_h^{\mathrm{tr}} = \sum_{i \in H} \alpha_i^{\lambda} \, X_i
+
+The matrix elements (second-order Sonine) are [Munafo_thesis]_ (Eqs.
+2.61--2.62), [Magin_thesis]_ (Eqs. C.6c--d):
+
+**Off-diagonal** (:math:`i \neq j`), defining
+:math:`\hat{m}_{ij} = m_i/(m_i + m_j)`:
+
+.. math::
+   :label: eq_G_lam_offdiag
+
+   G_{ij}^{\lambda} = \frac{1}{25 \, k_{\mathrm{B}}}
+   \frac{X_i X_j}{n D_{ij}}
+   \hat{m}_{ij} \hat{m}_{ji}
+   \left(16 A_{ij}^* + 12 B_{ij}^* - 55\right)
+
+**Diagonal:**
+
+.. math::
+   :label: eq_G_lam_diag
+
+   G_{ii}^{\lambda} = \frac{X_i^2}{\lambda_i^{\mathrm{tr}}}
+   + \sum_{j \neq i} \frac{1}{25 \, k_{\mathrm{B}}}
+   \frac{X_i X_j}{n D_{ij}}
+   \left[30 \hat{m}_{ij}^2 + 16 A_{ij}^* \hat{m}_{ij} \hat{m}_{ji}
+   + (25 - 12 B_{ij}^*) \hat{m}_{ji}^2\right]
+
+where :math:`\lambda_i^{\mathrm{tr}} = \tfrac{15}{4} \eta_i R_i` is the
+species translational conductivity.
+
+Source: ``src/transport/transport_matrix.F90``, lines 267--273.
+
+
+Internal Conductivity (Eucken Correction)
+------------------------------------------
+
+The internal (rotational + vibrational + electronic) contribution uses the
+generalized Eucken approximation [Magin_thesis]_ (Eqs. 2.13a--c),
+[Munafo_thesis]_ (Eq. 3.114):
+
+.. math::
+   :label: eq_lambda_int
+
+   \lambda^{\mathrm{int}} = \frac{n_d}{N_A}
+   \sum_{i \in H_p} \frac{c_{v,i}^{\mathrm{int}} \, m_i \, X_i}
+   {\displaystyle\sum_{j \in H} X_j / D_{ij}}
+
+where :math:`c_{v,i}^{\mathrm{int}} = c_{v,i}^{\mathrm{rot}} + c_{v,i}^{\mathrm{vib}} + c_{v,i}^{\mathrm{el}}`
+and the sum is over polyatomic species :math:`H_p`.
+
+The physical picture: internal energy is transported by **molecular
+diffusion** rather than by thermal conduction. The Eucken correction converts
+the diffusion coefficient into an effective thermal conductivity for internal
+modes.
+
+Source: ``src/transport/transport_prop_lam_int.F90``.
+
+
+Electron Thermal Conductivity
+-------------------------------
+
+Third-order Sonine polynomial approximation [Magin_thesis]_ (Eq. 4.4b):
+
+.. math::
+   :label: th_eq_lambda_e
+
+   \lambda_e = \frac{75}{8} k_{\mathrm{B}}
+   \sqrt{\frac{2\pi R_u}{m_e}} \;
+   \frac{X_e \sqrt{T_e}}
+   {\Lambda_{ee}^{11} - (\Lambda_{ee}^{12})^2 / \Lambda_{ee}^{22}}
+
+where :math:`\Lambda_{ee}^{pq}` are the electron--electron transport system
+matrix elements defined in terms of collision integral combinations
+[Magin_thesis]_ (Eqs. C.5c, C.5d, C.5f).
+
+Source: ``src/transport/transport_prop_lam_sig_e.F90``, lines 81--84.
+
+
+.. _transport_stefan_maxwell:
+
+Stefan--Maxwell Diffusion Equations
+=====================================
+
+The species diffusion velocities are obtained from the Stefan--Maxwell
+equations, which express the balance between driving forces and
+inter-species friction.
+
+
+Neutral Mixture
+---------------
+
+For a neutral mixture [Munafo_thesis]_ (Eqs. 2.69--2.72):
+
+.. math::
+   :label: eq_stefan_maxwell
+
+   \sum_{j \in S} G_{ij}^{D} \, V_j^d = -\hat{d}_i, \qquad i \in S
+
+with the mass conservation constraint :math:`\sum_j \rho_j V_j^d = 0`.
+
+The driving force :math:`\hat{d}_i` includes mole fraction gradients and
+pressure diffusion:
+
+.. math::
+
+   \hat{d}_i = \nabla X_i + (X_i - y_i) \nabla \ln p
+
+The matrix elements are [Munafo_thesis]_ (Eqs. 2.71--2.72):
+
+.. math::
+
+   G_{ij}^{D} = -\frac{X_i X_j}{D_{ij}} \;\; (i \neq j), \qquad
+   G_{ii}^{D} = \sum_{k \neq i} \frac{X_i X_k}{D_{ik}}
+
+The matrix is singular (all row sums vanish), so it is regularized with a
+mass-conservation term [Munafo_thesis]_ (Eq. 2.73):
+:math:`\tilde{G}_{ij}^D = G_{ij}^D + \tilde{a} \rho_i \rho_j`.
+The regularized symmetric system is solved by Cholesky decomposition.
+
+
+Ionized Mixture (Ambipolar Diffusion)
+--------------------------------------
+
+For ionized mixtures, the Stefan--Maxwell system is extended with an
+**ambipolar electric field** that enforces charge neutrality
+[Magin_thesis]_ (Eqs. 1.94--1.95). The system becomes
+:math:`(n_{\mathrm{comp}} + 1) \times (n_{\mathrm{comp}} + 1)`:
+
+.. math::
+   :label: eq_SM_ion
+
+   \sum_{j \in S} G_{ij}^{D} V_j^d + \kappa_i \, E_a = -d_i'
+
+with the **zero-current constraint** as the additional equation.
+
+The electric field coupling coefficients are:
+
+.. math::
+
+   \kappa_i = \frac{1}{k_{\mathrm{B}} T_h}
+   \left(X_i q_i - y_i \sum_j X_j q_j\right)
+
+where :math:`q_i` is the charge of species *i*.
+
+For electron rows, the driving force is scaled by :math:`T_h/T_e` to account
+for the different electron temperature [Magin_thesis]_ (Eq. 1.90b).
+
+This **non-symmetric** system is solved by **LU decomposition** with
+partial pivoting (Crout's algorithm from ``src/numerics/``).
+
+Source: ``src/transport/transport_flux.F90``,
+``src/transport/transport_matrix.F90``, lines 343--436.
+
+
+Thermal Diffusion (Soret Effect)
+---------------------------------
+
+In addition to composition and pressure-driven diffusion, PLATO includes
+**thermal diffusion** (Soret effect): species diffuse along temperature
+gradients. The thermal diffusion ratios :math:`k_{T,i}^h` appear in the
+full diffusion driving force [Munafo_thesis]_ (Eq. 2.65):
+
+.. math::
+
+   k_{T,i}^h = \frac{5}{2} \sum_{j \in H} \Lambda_{ij}^{01}
+   \alpha_j^{\lambda}
+
+where :math:`\Lambda_{ij}^{01}` are the off-diagonal thermal diffusion
+matrix elements [Munafo_thesis]_ (Eqs. 2.66--2.67), [Magin_thesis]_
+(Eqs. C.6e--f):
+
+.. math::
+
+   \Lambda_{ij}^{01} = \frac{1}{25 k_{\mathrm{B}}}
+   \frac{X_i X_j}{n D_{ij}} \frac{m_i}{m_i + m_j}
+   (12 C_{ij}^* - 10) \qquad (i \neq j)
+
+
+.. _transport_electrical:
+
+Electrical Conductivity
+=======================
+
+Second-order Sonine polynomial approximation (default)
+[Magin_thesis]_ (Eq. 4.11b):
+
+.. math::
+   :label: th_eq_sigma_e
+
+   \sigma_e = \frac{4}{25} \frac{(X_e \, e)^2}{k_{\mathrm{B}}^2 \, T_e}
+   \frac{1}{\Lambda_{ee}^{00} - (\Lambda_{ee}^{01})^2 / \Lambda_{ee}^{11}}
+
+where the denominator is the Schur complement of the 2\ :math:`\times`\ 2
+Sonine system.
+
+A third-order approximation is also available, where a :math:`3 \times 3`
+symmetric system of :math:`\Lambda_{ee}^{pq}` is solved [Magin_thesis]_
+(Sec. 4.3).
+
+Source: ``src/transport/transport_prop_lam_sig_e.F90``, lines 91--108.
+
+
+Summary of Transport Linear Systems
+=====================================
+
+.. list-table::
+   :widths: 25 15 20 15 20
+   :header-rows: 1
+
+   * - Property
+     - Sonine Order
+     - System Size
+     - Symmetry
+     - Solver
+   * - Viscosity :math:`\eta`
+     - 1st
+     - :math:`n_h \times n_h`
+     - Symmetric
+     - Cholesky
+   * - :math:`\lambda_h^{\mathrm{tr}}`
+     - 2nd
+     - :math:`n_h \times n_h`
+     - Symmetric
+     - Cholesky
+   * - :math:`\lambda^{\mathrm{int}}`
+     - Eucken
+     - Closed-form
+     - ---
+     - ---
+   * - :math:`\lambda_e`
+     - 3rd
+     - :math:`2 \times 2`
+     - Analytic
+     - Direct
+   * - :math:`\sigma_e`
+     - 2nd (default)
+     - Analytic
+     - Analytic
+     - Direct
+   * - Neutral diffusion
+     - 1st
+     - :math:`n_c \times n_c`
+     - Symmetric
+     - Cholesky
+   * - Ionized diffusion
+     - 1st
+     - :math:`(n_c+1)^2`
+     - Non-symmetric
+     - LU (Crout)
+
+
+.. rubric:: References
+
+.. [Ern1994] A. Ern and V. Giovangigli, "Multicomponent Transport Algorithms,"
+   *Lecture Notes in Physics*, Springer, 1994.
+
+.. [Magin_thesis] T.E. Magin, "A Model for Inductive Plasma Wind Tunnels,"
+   PhD Thesis, Université Libre de Bruxelles, 2004.
+
+.. [Munafo_thesis] A. Munafò, "Multi-Scale Models and Computational Methods
+   for Aerothermodynamics," PhD Thesis, Ecole Centrale Paris, 2014.
+
+.. [Gupta1990] R.N. Gupta, J.M. Yos, R.A. Thompson, and K.-P. Lee,
+   "A Review of Reaction Rates and Thermodynamic and Transport Properties
+   for an 11-Species Air Model," NASA RP-1232, 1990.
+
+.. [Devoto1973] R.S. Devoto, "Transport Properties of Ionized Monatomic
+   Gases," *Physics of Fluids*, Vol. 16, No. 5, 1973.

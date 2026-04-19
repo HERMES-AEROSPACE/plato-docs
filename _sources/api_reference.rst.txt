@@ -1,0 +1,426 @@
+.. _api_reference:
+
+=============
+API Reference
+=============
+
+PLATO exposes its functionality through three language interfaces arranged
+in a layered architecture.
+
+.. code-block:: text
+
+   +-------------------------------------------------------------+
+   |                    External Consumer Code                    |
+   |         (HEGEL, HyperCode, FLUX, user programs)             |
+   +----------+------------------+------------------+------------+
+              |                  |                  |
+              v                  v                  v
+   +------------------+ +----------------+ +--------------------+
+   |  Fortran API     | |   C API        | |     C++ API        |
+   |  ~90 routines    | |   22 wrappers  | |     22 wrappers    |
+   +------------------+ +-------+--------+ +----------+---------+
+                                |                     |
+                                v                     v
+                       +------------------------------------+
+                       |  Fortran bind(C) entry points      |
+                       |  (~35 routines with iso_c_binding) |
+                       +----------------+-------------------+
+                                        |
+                                        v
+                       +------------------------------------+
+                       |   Internal Fortran modules          |
+                       +------------------------------------+
+
+**Key design points:**
+
+- The Fortran interface is a **pure re-export facade** -- no executable code.
+- C and C++ wrappers **independently** call the same Fortran ``bind(C)`` functions.
+- Dual versions for C interop: ``F``-suffixed ``dimension(:)`` for Fortran,
+  ``dimension(*)`` with ``bind(C)`` for C.
+
+
+Fortran API
+===========
+
+Module: ``plato_library_interface``
+
+All public names are prefixed with ``plato_``. Types ``kd_i4`` (32-bit integer),
+``kd_i8`` (64-bit integer), ``kd_r8`` (64-bit real) are re-exported.
+
+Initialization and Finalization
+-------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 40 25
+
+   * - Public name
+     - Signature
+     - Notes
+   * - ``plato_initialize``
+     - ``subroutine(solver, mixture, reaction, transfer, path)``
+     - All ``character(len=*), intent(in)``
+   * - ``plato_finalize``
+     - ``subroutine()``
+     - bind(C)
+
+Scalar Query Routines
+---------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 20 10 35
+
+   * - Public name
+     - Return type
+     - bind(C)
+     - Description
+   * - ``plato_get_nb_elem``
+     - ``integer(kd_i4)``
+     - Yes
+     - Number of elements
+   * - ``plato_get_nb_e``
+     - ``integer(kd_i4)``
+     - Yes
+     - Number of free-electron species (0 or 1)
+   * - ``plato_get_nb_comp``
+     - ``integer(kd_i4)``
+     - Yes
+     - Number of chemical components
+   * - ``plato_get_nb_species``
+     - ``integer(kd_i4)``
+     - Yes
+     - Total number of species
+   * - ``plato_get_nb_at``
+     - ``integer(kd_i4)``
+     - Yes
+     - Number of atomic components
+   * - ``plato_get_nb_mol``
+     - ``integer(kd_i4)``
+     - Yes
+     - Number of molecular components
+   * - ``plato_get_nb_temp``
+     - ``integer(kd_i4)``
+     - Yes
+     - Number of temperatures
+   * - ``plato_get_nb_el_temp``
+     - ``integer(kd_i4)``
+     - Yes
+     - Number of electronic temperatures
+
+Array Query Routines
+--------------------
+
+All output arrays are caller-allocated. Sizes obtainable from scalar query routines.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 35 15 15
+
+   * - Public name
+     - Output
+     - Array
+     - bind(C)
+   * - ``plato_get_Ri(out_Ri)``
+     - Species gas constants [J/(kg K)]
+     - ``dimension(*)``
+     - Yes
+   * - ``plato_get_mi(out_mi)``
+     - Species molar masses [kg/mol]
+     - ``dimension(*)``
+     - Yes
+   * - ``plato_get_Efi(out_Efi)``
+     - Species formation energies [J/kg]
+     - ``dimension(*)``
+     - Yes
+
+Composition and Mixture Utilities
+---------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Signature
+   * - ``plato_mole_to_mass_fractions``
+     - ``pure subroutine(Xi, yi)``
+   * - ``plato_mass_to_mole_fractions``
+     - ``pure subroutine(yi, Xi)``
+   * - ``plato_get_pressure``
+     - ``pure function(Th, Te, rhoc) result(p)``
+   * - ``plato_get_density``
+     - ``pure function(nb, Xi) result(rho)``
+   * - ``plato_get_nb_density``
+     - ``pure function(p, Th, Te, Xe) result(nb)``
+
+LTE Composition
+---------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 50 10
+
+   * - Public name
+     - Signature
+     - bind(C)
+   * - ``plato_get_eq_composition_mole``
+     - ``subroutine(p, T, Xc, Xi, flag)``
+     - Yes
+   * - ``plato_get_eq_composition_mass``
+     - ``subroutine(rho, T, yc, yi, flag)``
+     - Yes
+
+``Xc``/``yc`` are ``intent(inout)`` (provide initial guess, receive converged
+component fractions). ``Xi``/``yi`` are ``intent(out)`` (species fractions).
+
+NLTE Thermodynamic Properties
+------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Signature
+   * - ``plato_get_temperatures``
+     - ``subroutine(rhoi, rhoe, temp)``
+   * - ``plato_get_energy_densities``
+     - ``subroutine(rhoi, temp, rhoe)``
+   * - ``plato_get_frozen_gamma_sound_speed``
+     - ``subroutine(p, rho, Th, yi, gammaf, cf)``
+   * - ``plato_get_species_energy``
+     - ``subroutine(temp, ei)``
+   * - ``plato_get_species_enthalpy``
+     - ``subroutine(temp, hi)``
+   * - ``plato_get_species_entropy``
+     - ``subroutine(temp, p, si)`` (NASA path only)
+
+Transport Properties and Fluxes
+--------------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Signature
+   * - ``plato_get_transp_coeff``
+     - ``subroutine(nd, Xi, temp, mu, sigma, lambda, Di, Dij)``
+   * - ``plato_get_sigma_e``
+     - ``function(nb, Th, Te, Xi) result(sigma)``
+   * - ``plato_get_bin_diff_coeff``
+     - ``subroutine(nb, Th, Te, Xi, Dij_coeff)``
+   * - ``plato_get_lambda_vec``
+     - ``subroutine(nd, Xi, temp, lambda)``
+   * - ``plato_get_species_diff_flux``
+     - ``subroutine(Th, Te, nd, Xi, Dij, drive_force, Ji)``
+
+Kinetics Source Terms
+---------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Signature
+   * - ``plato_get_source``
+     - ``subroutine(nb_dim, rhoi, temp, omega)``
+   * - ``plato_get_source_jac``
+     - ``subroutine(nb_dim, rhoi, temp, omega, jomega)``
+
+ODE Integrator
+--------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Signature
+   * - ``plato_pre_initialize_ode_integrator``
+     - ``subroutine(odeset, nipar, nrpar, neq, meth, miter, order, atol, rtol)``
+   * - ``plato_initialize_ode_integrator``
+     - ``subroutine(neq, t0, y0)``
+   * - ``plato_evolve_ODE``
+     - ``subroutine(nipar, nrpar, neq, ipar, rpar, y, time0, time)``
+   * - ``plato_finalize_ode_integrator``
+     - ``subroutine()``
+
+
+C API
+=====
+
+Header: ``plato_C_library_interface.h``
+
+All functions are prefixed ``plato_``. Scalars are passed by pointer
+(matching Fortran pass-by-reference). Arrays are ``double*`` / ``const double*``.
+
+Lifecycle
+---------
+
+.. code-block:: c
+
+   void plato_initialize(const char *solver, const char *mixture,
+                         const char *reaction, const char *transfer,
+                         const char *path);
+   void plato_finalize(void);
+
+Species and Mixture Queries
+---------------------------
+
+.. code-block:: c
+
+   int    plato_get_nb_species(void);
+   int    plato_get_nb_comp(void);
+   int    plato_get_nb_temp(void);
+   void   plato_get_Ri(double *Ri);
+   void   plato_get_mi(double *mi);
+   void   plato_get_Efi(double *Efi);
+
+Composition and Thermodynamics
+------------------------------
+
+.. code-block:: c
+
+   void plato_mass_to_mole_fractions(const double *yi, double *Xi);
+   void plato_mole_to_mass_fractions(const double *Xi, double *yi);
+
+   void plato_get_eq_composition_mole(const double *p, const double *T,
+                                      double *Xc, double *Xi, const int *flag);
+   void plato_get_energy_densities(const double *rhoi, const double *tvec,
+                                   double *rhoee);
+
+Transport
+---------
+
+.. code-block:: c
+
+   double plato_get_dyn_vis(const double *nb, const double *Th,
+                            const double *Te, const double *Xi);
+   void   plato_get_species_diff_flux(const double *Th, const double *Te,
+                                      const double *nb, const double *Xi,
+                                      const double *Dij, const double *grad_Xi,
+                                      double *Ji);
+
+Kinetics
+--------
+
+.. code-block:: c
+
+   void plato_get_source(const unsigned int *ndim, const double *rhoi,
+                         const double *tvec, double *omega);
+
+ODE Integrator
+--------------
+
+.. code-block:: c
+
+   void plato_initialize_ODE_integrator(const int *neq, const double *t0,
+                                        const double *z);
+   void plato_evolve_ODE(const int *nipar, const int *nrpar, const int *neq,
+                         const int *ipar, const double *rpar, double *z,
+                         double *time0, const double *time);
+
+
+C++ API
+=======
+
+Header: ``plato_Cpp_library_interface.h``
+
+The C++ API is **procedural** -- free functions at global scope, no namespace,
+no classes, no RAII. Largely identical to C API.
+
+**Functions in C++ but NOT in C:**
+
+- ``plato_get_at_ids`` -- implemented
+- ``plato_get_mol_ids`` -- implemented
+- ``plato_get_source_jac`` -- **stub** (prints error, calls ``exit(1)``)
+
+**Functions in C but NOT in C++:**
+
+- ``plato_get_species_diff_flux``
+
+
+Fortran-C Interoperability
+==========================
+
+Array Passing
+-------------
+
+Three patterns:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 25 25
+
+   * - Pattern
+     - Fortran syntax
+     - Usage
+     - C-compatible
+   * - Assumed-shape
+     - ``dimension(:)``
+     - Fortran-facing (``F``-suffix)
+     - No
+   * - Assumed-size
+     - ``dimension(*)``
+     - ``bind(C)`` routines
+     - Yes
+   * - Explicit-size
+     - ``dimension(nb_sp)``
+     - Some ``bind(C)`` routines
+     - Yes
+
+String Passing
+--------------
+
+C/C++ wrappers compute ``strlen()`` and append lengths as trailing ``int``
+arguments by value. Fortran side receives ``character(kind=c_char), dimension(*)``
+plus integer length.
+
+Scalar Passing
+--------------
+
+All scalar arguments passed **by pointer** in C/C++ (``const double *``,
+``const int *``), matching Fortran pass-by-reference. Functions returning
+scalars use C return values.
+
+
+API Coverage Gap Analysis
+=========================
+
+The C/C++ APIs expose ~22 of ~90 Fortran routines. Major **Fortran-only**
+capabilities:
+
+- Full analytical Jacobian (C++ has stub that calls ``exit(1)``)
+- All transport coefficients (``get_transp_coeff``, ``get_sigma_e``,
+  ``get_lambda_vec``, ``get_bin_diff_coeff``)
+- Temperature retrieval from energy densities (``get_temperatures``)
+- Per-species energy/Cv/enthalpy/entropy
+- All equilibrium properties (Cv, Cp, gammas 1-3)
+- Post-shock conditions, Stefan-Maxwell matrices
+- All GSI and LPI kinetics
+- Name queries, ROM model access
+
+
+Known Issues
+============
+
+1. **``plato_Cpp_constants.h``** -- ``UC0`` macro references undefined ``EPS0``/``MU0``
+   instead of ``UEPS0``/``UMU0``. Will not compile.
+
+2. **``plato_Cpp_fortran.h``** -- Duplicate declarations for fraction conversion
+   functions.
+
+3. **``plato_get_source``** -- Type mismatch: ``unsigned int*`` in C API vs
+   ``int*`` in C++ API for ``ndim`` parameter.
+
+4. **``plato_Cpp_fortran.h``** -- ``using namespace std;`` at file scope in
+   header (namespace pollution).
+
+5. **No error handling** -- Errors trigger ``safe_exit`` (Fortran ``stop``),
+   terminating the process with no recovery path.
+
+6. **No thread safety** -- Module-level global state makes concurrent calls
+   unsafe without external synchronization.

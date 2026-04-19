@@ -1,0 +1,143 @@
+.. _ex04_transport:
+
+========================================
+Example 4: Transport Properties
+========================================
+
+Physical Context
+================
+
+Transport properties govern the diffusive fluxes in the Navier--Stokes
+equations: viscosity controls momentum diffusion, thermal conductivity
+controls heat conduction, and diffusion coefficients control species mass
+transport. For ionized gases, electrical conductivity is also important.
+
+This example computes the LTE transport properties of 11-species ionized
+air (N, O, N\ :sub:`2`, NO, O\ :sub:`2`, N\ :sup:`+`, O\ :sup:`+`,
+NO\ :sup:`+`, N\ :sub:`2`\ :sup:`+`, O\ :sub:`2`\ :sup:`+`, e\ :sup:`-`)
+over 300--30000 K at 1 atm. Air is the most relevant mixture for hypersonic
+flight applications because it captures both dissociation and ionization:
+
+- O\ :sub:`2` dissociates first (~3000 K), followed by N\ :sub:`2` (~5000 K)
+- Ionization onset near 7000 K, with NO\ :sup:`+` appearing first
+- Electron transport dominates above ~10000 K
+
+**Theory reference:** :ref:`theory_transport`.
+
+
+Input File
+==========
+
+.. code-block:: text
+
+   #---------------------------
+   # LTE transport — 11-species ionized air
+   #---------------------------
+   PATH      = /path/to/database
+   MIXTURE   = air11_nasa
+   REACTION  = empty
+   TRANSFER  = empty
+   P         = 101325.d0
+   T_MIN     = 300.d0
+   T_MAX     = 30000.d0
+   DT        = 100.d0
+   T_MIN_EQ  = 400.d0
+   TRANSPORT = T
+   OUTPUT    = .
+
+.. note::
+
+   ``T_MIN_EQ = 400`` sets the minimum temperature at which the equilibrium
+   solver is called. Below this temperature, the composition is set to the
+   neutral initial state.
+
+   ``TRANSPORT = T`` enables computation of transport coefficients in
+   addition to equilibrium composition.
+
+
+Running the Example
+===================
+
+.. code-block:: bash
+
+   cd build
+   ./test/plato_equil_test ../test/regression/input/transport_air11.in
+
+
+Expected Output
+===============
+
+The program produces ``transp.dat`` in addition to ``Xi.dat``. The transport
+output has 6 columns: temperature, viscosity, electronic thermal conductivity,
+heavy thermal conductivity, internal thermal conductivity, and electrical
+conductivity:
+
+.. code-block:: text
+
+   # T [K]     mu [Pa.s]     lam_e [W/mK]  lam_h [W/mK]  lam_int [W/mK]  sigma [S/m]
+     300.0   1.911e-05   2.677e-58   2.065e-02   7.462e-64   7.466e-03
+    1000.0   4.567e-05   3.734e-52   4.458e-02   1.397e-54   1.697e-02
+    5000.0   1.279e-04   3.816e-08   1.750e-01   2.059e-10   3.854e-02
+   10000.0   2.272e-04   2.708e+03   4.863e-01   3.285e-01   1.621e-01
+   15000.0   1.199e-04   2.178e+03   1.876e-01   2.965e-01   4.076e+03
+   20000.0   8.672e-05   1.519e+03   1.219e-01   1.583e-01   6.771e+03
+
+Key features:
+
+- **Viscosity** peaks near 10000 K as dissociation completes, then drops
+  as ionization introduces light electrons into the mixture.
+- **Electron thermal conductivity** rises steeply with ionization and
+  dominates above ~8000 K.
+- **Electrical conductivity** increases by many orders of magnitude as the
+  gas ionizes.
+- **Internal thermal conductivity** shows contributions from both
+  dissociation (vibrational/rotational modes) and ionization.
+
+
+Results Plot
+============
+
+.. figure:: figures/ex04_transport_air11.png
+   :width: 90%
+   :align: center
+
+   LTE transport properties of 11-species air at 1 atm. Top: dynamic
+   viscosity. Middle: thermal conductivity decomposed into heavy-particle,
+   electron, and internal contributions. Bottom: electrical conductivity.
+   **Note:** reactive thermal conductivity (λ_reac) is not yet implemented.
+   The total shown is λ_h + λ_e + λ_int without the Butler-Brokaw reactive
+   contribution, which would add a peak of ~3 W/mK near 7000 K.
+   The transitions reflect both dissociation (~3000--7000 K) and ionization
+   (~7000--15000 K).
+
+
+Physical Interpretation
+=======================
+
+The transport behavior reflects the progressive dissociation and ionization
+of air:
+
+1. **Molecular regime** (T < 3000 K): The gas is predominantly N\ :sub:`2`
+   and O\ :sub:`2`. Viscosity increases with :math:`\sqrt{T}` (kinetic
+   theory). Thermal conductivity follows a similar trend with additional
+   contributions from rotational and vibrational internal modes.
+   Electrical conductivity is essentially zero.
+
+2. **Dissociation regime** (3000--8000 K): O\ :sub:`2` dissociates first,
+   followed by N\ :sub:`2`. The mean molecular weight decreases, affecting
+   viscosity. Internal thermal conductivity peaks due to the reactive
+   contribution from dissociation-recombination reactions.
+
+3. **Ionization regime** (8000--20000 K):
+
+   - Viscosity drops sharply as electrons (negligible mass) enter the mixture.
+   - Electron thermal conductivity rises steeply because electrons are
+     excellent heat carriers (high thermal velocity, :math:`\propto \sqrt{T/m_e}`).
+   - Electrical conductivity jumps by many orders of magnitude as free
+     electrons become available.
+
+4. **Fully ionized** (T > 20000 K): Properties vary smoothly. The Coulomb
+   collision integrals (screened by Debye shielding) produce a characteristic
+   :math:`T^{5/2}` dependence for :math:`\sigma_e` (Spitzer conductivity).
+
+The plot is generated by ``scripts/plot_ex04.py``.

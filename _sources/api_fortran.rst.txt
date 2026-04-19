@@ -1,0 +1,586 @@
+.. _api_fortran:
+
+===========
+Fortran API
+===========
+
+Module: ``plato_library_interface``
+
+The Fortran API is the primary interface to PLATO. It is a **pure re-export
+facade** — the module contains no executable code, only ``interface`` blocks
+that rename internal routines with the ``plato_`` prefix.
+
+.. code-block:: fortran
+
+   use plato_library_interface, only: kd_i4, kd_r8, plato_initialize, &
+                                      plato_finalize, plato_get_nb_species
+
+All public names are listed below, organized by category.
+
+
+Exported Types
+==============
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 50
+
+   * - Name
+     - Kind
+     - Description
+   * - ``kd_i4``
+     - ``integer``
+     - 32-bit integer kind parameter
+   * - ``kd_i8``
+     - ``integer``
+     - 64-bit integer kind parameter
+   * - ``kd_r8``
+     - ``real``
+     - 64-bit (double precision) real kind parameter
+   * - ``s_str``
+     - ``integer``
+     - Short string length constant
+   * - ``l_str``
+     - ``integer``
+     - Long string length constant
+   * - ``plato_rom_model``
+     - ``type``
+     - ROM model derived type (from ``plato_rom_class``)
+
+
+Initialization and Finalization
+===============================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Description
+   * - ``plato_initialize(solver, mixture, reaction, transfer, path)``
+     - Initialize the library. All arguments are ``character(len=*), intent(in)``.
+   * - ``plato_finalize()``
+     - Deallocate all internal data and shut down the library.
+
+**Arguments to** ``plato_initialize``:
+
+1. ``solver`` — Name of calling program (used in diagnostics)
+2. ``mixture`` — Mixture file name (in ``database/mixture/``)
+3. ``reaction`` — Kinetics mechanism file (in ``database/kinetics/``; ``'empty'`` for none)
+4. ``transfer`` — Nonequilibrium model file (in ``database/transfer/``; ``'empty'`` for none)
+5. ``path`` — Path to the database directory
+
+
+Runtime Parameter Control
+=========================
+
+These routines modify or query internal tolerances and thresholds after
+initialization.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Description
+   * - ``plato_set_X_tol(tol)``
+     - Set mole fraction tolerance
+   * - ``plato_get_X_tol()``
+     - Get current mole fraction tolerance
+   * - ``plato_set_Tmin_eq(Tmin)``
+     - Set minimum temperature for equilibrium solver
+   * - ``plato_get_Tmin_eq()``
+     - Get minimum temperature for equilibrium solver
+   * - ``plato_set_Tmin_rate(Tmin)``
+     - Set minimum temperature for rate coefficient evaluation
+   * - ``plato_get_Tmin_rate()``
+     - Get minimum temperature for rate coefficient evaluation
+
+
+Error Handling
+==============
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Description
+   * - ``plato_safe_exit(msg)``
+     - Terminate with error message (generic interface: 1 or 2 string arguments)
+
+.. warning::
+
+   ``plato_safe_exit`` calls Fortran ``stop`` — there is no recovery path.
+   In coupled codes, consider trapping this at the process boundary.
+
+
+Scalar Query Routines
+=====================
+
+All return ``integer(kd_i4)`` and take no arguments. Most have ``bind(C)``
+variants for C/C++ interop.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Description
+   * - ``plato_get_nb_elem()``
+     - Number of chemical elements
+   * - ``plato_get_nb_e()``
+     - Number of free-electron species (0 or 1)
+   * - ``plato_get_nb_at()``
+     - Number of atomic components
+   * - ``plato_get_nb_mol()``
+     - Number of molecular components
+   * - ``plato_get_nb_comp()``
+     - Number of chemical components (atoms + molecules + ions)
+   * - ``plato_get_nb_species()``
+     - Total number of species (components + electrons)
+   * - ``plato_get_nb_temp()``
+     - Number of temperatures in the model
+   * - ``plato_get_nb_el_temp()``
+     - Number of electronic temperatures
+   * - ``plato_get_nb_surf_species()``
+     - Number of surface species (GSI)
+   * - ``plato_get_T_ref()``
+     - Reference temperature [K]
+   * - ``plato_get_Rgas()``
+     - Universal gas constant [J/(mol K)]
+
+
+Array Query Routines
+====================
+
+All output arrays are caller-allocated. Sizes are obtainable from the scalar
+query routines above.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 35 25
+
+   * - Public name
+     - Output
+     - Size
+   * - ``plato_get_Ri(out_Ri)``
+     - Species gas constants [J/(kg K)]
+     - ``nb_species``
+   * - ``plato_get_mi(out_mi)``
+     - Species molar masses [kg/mol]
+     - ``nb_species``
+   * - ``plato_get_mc(out_mc)``
+     - Component molar masses [kg/mol]
+     - ``nb_comp``
+   * - ``plato_get_qi(out_qi)``
+     - Species charges [elementary charge units]
+     - ``nb_species``
+   * - ``plato_get_Efi(out_Efi)``
+     - Species formation energies [J/kg]
+     - ``nb_species``
+   * - ``plato_get_comp_charge(out_q)``
+     - Component charges
+     - ``nb_comp``
+
+
+Name Query Routines
+===================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Description
+   * - ``plato_get_elem_name(i, name)``
+     - Name of element ``i``
+   * - ``plato_get_comp_name(i, name)``
+     - Name of component ``i``
+   * - ``plato_get_species_name(i, name)``
+     - Name of species ``i``
+   * - ``plato_get_temp_name(i, name)``
+     - Name of temperature ``i``
+   * - ``plato_get_surf_species_name(i, name)``
+     - Name of surface species ``i`` (GSI)
+   * - ``plato_get_species_ef_hf(name, ef, hf)``
+     - Formation energy and enthalpy for named species
+
+
+Species Lookup
+==============
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Description
+   * - ``plato_find_comp_index(name, idx)``
+     - Find component index by name
+   * - ``plato_check_comp(name, found)``
+     - Check whether a component exists in the mixture
+
+
+Nonequilibrium Model Queries
+=============================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_heavy_comp_lev_data(...)``
+     - Level data for heavy-particle components
+   * - ``plato_get_nb_neq_mat_comp()``
+     - Number of nonequilibrium matrix components
+   * - ``plato_get_neq_mat(...)``
+     - Nonequilibrium grouping matrix
+
+
+Composition Utilities
+=====================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_mole_to_mass_fractions(Xi, yi)``
+     - Convert mole fractions to mass fractions (pure)
+   * - ``plato_mass_to_mole_fractions(yi, Xi)``
+     - Convert mass fractions to mole fractions (pure)
+   * - ``plato_get_comp_fractions(Xi_sp, Xi_comp)``
+     - Compute component fractions from species fractions
+   * - ``plato_get_pressure(Th, Te, rhoc)``
+     - Compute pressure from temperatures and partial densities (pure function)
+   * - ``plato_get_density(nb, Xi)``
+     - Compute mass density from number density and mole fractions (pure function)
+   * - ``plato_get_nb_density(p, Th, Te, Xe)``
+     - Compute number density from pressure and temperatures (pure function)
+   * - ``plato_comp_tol(...)``
+     - Tolerance-based composition comparison (generic: 1 or 2 argument forms)
+
+
+LTE Composition
+===============
+
+Newton-Raphson solver for chemical equilibrium composition.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_eq_composition_mole(p, T, Xc, Xi, flag)``
+     - Equilibrium mole fractions at given pressure and temperature.
+       ``Xc`` is ``intent(inout)`` (initial guess in, converged out).
+   * - ``plato_get_eq_composition_mass(rho, T, yc, yi, flag)``
+     - Equilibrium mass fractions at given density and temperature.
+   * - ``plato_set_elem_frac(frac)``
+     - Override elemental fractions for equilibrium solver
+
+
+LTE Thermodynamic Properties
+=============================
+
+Secondary thermodynamic properties at chemical equilibrium. All require
+a prior call to one of the equilibrium composition routines.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_eq_Cv(...)``
+     - Equilibrium specific heat at constant volume
+   * - ``plato_get_eq_Cp(...)``
+     - Equilibrium specific heat at constant pressure
+   * - ``plato_get_eq_gamma_1(...)``
+     - First adiabatic exponent :math:`\gamma_1`
+   * - ``plato_get_eq_gamma_2(...)``
+     - Second adiabatic exponent :math:`\gamma_2`
+   * - ``plato_get_eq_gamma_3(...)``
+     - Third adiabatic exponent :math:`\gamma_3`
+   * - ``plato_get_eq_gamma_sound_speed(p, T, rho, yi, gamma, cf)``
+     - Equilibrium ratio of specific heats and frozen sound speed
+   * - ``plato_get_eq_isoth_comp(...)``
+     - Isothermal compressibility
+   * - ``plato_get_eq_coeff_th_exp(...)``
+     - Coefficient of thermal expansion
+   * - ``plato_get_eq_total_from_static(...)``
+     - Total conditions from static (isentropic stagnation)
+   * - ``plato_get_eq_static_from_total(...)``
+     - Static conditions from total
+   * - ``plato_get_eq_static_from_total_hs(...)``
+     - Static from total (enthalpy-entropy variant)
+
+
+Post-Shock Conditions
+=====================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_post_shock_eq(...)``
+     - Post-shock equilibrium conditions (Rankine-Hugoniot)
+   * - ``plato_get_post_shock_neq(...)``
+     - Post-shock nonequilibrium conditions (frozen)
+
+
+NLTE Thermodynamic Properties
+==============================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_temperatures(rhoi, rhoe, temp)``
+     - Retrieve temperatures from conserved energy densities (Newton solver)
+   * - ``plato_get_energy_densities(rhoi, temp, rhoe)``
+     - Compute energy densities from temperatures
+   * - ``plato_get_data_from_rhoi_temp(...)``
+     - Compute multiple thermodynamic quantities from species densities and temperatures
+   * - ``plato_get_frozen_gamma_sound_speed(p, rho, Th, yi, gammaf, cf)``
+     - Frozen ratio of specific heats and sound speed
+   * - ``plato_get_species_energy(temp, ei)``
+     - Per-species internal energies [J/kg]
+   * - ``plato_get_species_neq_energy(...)``
+     - Per-species nonequilibrium energies
+   * - ``plato_get_species_cv_T(temp, cvi)``
+     - Per-species specific heats at constant volume
+   * - ``plato_get_species_energy_cv_T(temp, ei, cvi)``
+     - Per-species energies and specific heats (combined call)
+   * - ``plato_get_species_enthalpy(temp, hi)``
+     - Per-species enthalpies [J/kg]
+   * - ``plato_get_species_enthalpy_cp_T(temp, hi, cpi)``
+     - Per-species enthalpies and Cp (combined call)
+   * - ``plato_get_species_entropy(temp, p, si)``
+     - Per-species entropies [J/(kg K)] (NASA polynomial path only)
+
+
+Transport Properties and Fluxes
+================================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_transp_coeff(nd, Xi, temp, mu, sigma, lambda, Di, Dij)``
+     - All transport coefficients in one call: viscosity, electrical conductivity,
+       thermal conductivities, diffusion coefficients, binary diffusion matrix
+   * - ``plato_get_transp_coeff_comp(...)``
+     - Transport coefficients for components (reduced set)
+   * - ``plato_get_sigma_e(nb, Th, Te, Xi)``
+     - Electrical conductivity [S/m]
+   * - ``plato_get_lambda_vec(nd, Xi, temp, lambda)``
+     - Thermal conductivity vector (translational, internal, electron)
+   * - ``plato_get_bin_diff_coeff(nb, Th, Te, Xi, Dij)``
+     - Binary diffusion coefficient matrix
+   * - ``plato_get_species_diff_flux(Th, Te, nd, Xi, Dij, drive_force, Ji)``
+     - Species mass diffusion fluxes (Stefan-Maxwell solution)
+   * - ``plato_get_Stefan_Maxwell_mat_neut(...)``
+     - Stefan-Maxwell transport matrix (neutral mixture)
+   * - ``plato_get_Stefan_Maxwell_mat_ion(...)``
+     - Stefan-Maxwell transport matrix (ionized mixture)
+   * - ``plato_get_Debye_length(...)``
+     - Debye screening length
+   * - ``plato_get_plasma_ang_freq(...)``
+     - Plasma angular frequency
+
+
+Kinetics Source Terms
+=====================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_source(nb_dim, rhoi, temp, omega)``
+     - Full source terms: mass production [kg/m^3/s] and energy exchange [W/m^3].
+       ``omega(1:nb_sp)`` = mass, ``omega(nb_sp+nb_dim+1:...)`` = energy.
+   * - ``plato_get_source_jac(nb_dim, rhoi, temp, omega, jomega)``
+     - Full analytical Jacobian :math:`\partial(\omega,\Omega)/\partial(\rho,T)`
+
+
+Laser-Plasma Interaction (LPI) Kinetics
+========================================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_lib_source(nb_dim, lambda, I, rhoi, temp, omega)``
+     - LPI source terms (multi-photon ionization + inverse Bremsstrahlung)
+   * - ``plato_get_lib_source_jac(...)``
+     - LPI source analytical Jacobian
+   * - ``plato_get_lib_kappa(...)``
+     - Laser absorption coefficient
+
+
+Gas-Surface Interaction (GSI) Kinetics
+=======================================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_surf_cat_flux(...)``
+     - Surface catalytic mass flux
+   * - ``plato_get_surf_abl_cat_flux(...)``
+     - Surface ablation-catalysis mass flux
+   * - ``plato_get_gsi_qss_surf(rhoi, temp, theta)``
+     - Quasi-steady-state surface coverages (Newton solver)
+
+
+ODE Integrator
+==============
+
+For time-integration of NLTE kinetics (operator splitting in CFD, or
+stand-alone reactor simulations).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_pre_initialize_ode_integrator(odeset, nipar, nrpar, neq, meth, miter, order, atol, rtol)``
+     - Configure ODE solver: method (``'BDF'``), Jacobian strategy
+       (``'US'`` = user-supplied, ``'FD'`` = finite-difference), order, tolerances
+   * - ``plato_initialize_ode_integrator(neq, t0, y0)``
+     - Set initial conditions
+   * - ``plato_evolve_ODE(nipar, nrpar, neq, ipar, rpar, y, time0, time)``
+     - Advance solution from ``time0`` to ``time``
+   * - ``plato_finalize_ode_integrator()``
+     - Clean up ODE solver state
+
+**Typical usage pattern:**
+
+.. code-block:: fortran
+
+   call plato_pre_initialize_ode_integrator(odeset, nipar, nrpar, neq, &
+        'BDF', 'US', 5, atol, rtol)
+   call plato_initialize_ode_integrator(neq, t0, z0)
+   do i = 1, nsteps
+      call plato_evolve_ODE(nipar, nrpar, neq, ipar, rpar, z, t0, t1)
+      ! process solution at t1
+      t0 = t1
+   end do
+   call plato_finalize_ode_integrator()
+
+
+Post-Processing
+===============
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_get_output_var(nb_in_var, nb_out_var, in_var, out_var)``
+     - Convert primitive variables to derived quantities (mole fractions,
+       pressure, enthalpy, frozen Mach number, etc.)
+   * - ``plato_post_process_solution(...)``
+     - Extract Boltzmann-equivalent internal temperatures from CR/StS
+       population distributions (Newton solver)
+
+
+File I/O Utilities
+==================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Description
+   * - ``plato_open_file(unit, filename)``
+     - Open a text file for reading
+   * - ``plato_open_bin_file(unit, filename)``
+     - Open a binary (unformatted) file for reading
+   * - ``plato_close_file(unit)``
+     - Close a file unit
+   * - ``plato_get_nb_lines_file(unit)``
+     - Count number of lines in a text file
+
+
+Memory Management
+=================
+
+Generic interfaces for allocating and deallocating arrays. Each interface
+dispatches to integer or double precision variants.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Public name
+     - Description
+   * - ``plato_mem_alloc_1d(array, n)``
+     - Allocate 1D array (integer or double)
+   * - ``plato_mem_alloc_2d(array, n1, n2)``
+     - Allocate 2D array
+   * - ``plato_mem_alloc_3d(array, n1, n2, n3)``
+     - Allocate 3D array
+   * - ``plato_mem_alloc_4d(array, n1, n2, n3, n4)``
+     - Allocate 4D array
+   * - ``plato_mem_alloc_str_array(array, n)``
+     - Allocate string array
+   * - ``plato_mem_dealloc_1d(array)``
+     - Deallocate 1D array
+   * - ``plato_mem_dealloc_2d(array)``
+     - Deallocate 2D array
+   * - ``plato_mem_dealloc_3d(array)``
+     - Deallocate 3D array
+   * - ``plato_mem_dealloc_4d(array)``
+     - Deallocate 4D array
+   * - ``plato_mem_dealloc_str_array(array)``
+     - Deallocate string array
+
+
+ROM Model
+=========
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Public name
+     - Description
+   * - ``plato_is_rom_used()``
+     - Returns ``.true.`` if a reduced-order model is active
+   * - ``plato_get_rom_model(rom)``
+     - Retrieve the ROM model object (type ``plato_rom_model``)
+
+The ROM model provides projection-based reduction of CR/StS state vectors
+via Petrov-Galerkin biorthogonal bases. See :ref:`architecture` for details
+on the encode/decode/Jacobian-compression workflow.
+
+
+.. seealso::
+
+   :ref:`api_reference`
+      Hand-written overview of all three language interfaces (Fortran, C, C++)
+      with interop details and coverage gap analysis.
+
+   :ref:`api_doxygen`
+      Auto-generated C/C++ API documentation from Doxygen source comments.

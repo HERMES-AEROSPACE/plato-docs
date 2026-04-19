@@ -1,0 +1,1176 @@
+.. _physics:
+
+=============================
+Physical Modeling and Theory
+=============================
+
+.. note::
+
+   This page provides a summary of PLATO's physical modeling framework.
+   For the comprehensive mathematical derivations, see the
+   :ref:`Theory Guide <theory_guide>`, which covers:
+
+   - :ref:`Thermodynamic Properties <theory_thermo>` — partition functions,
+     energy, enthalpy, entropy, Gibbs and Helmholtz free energies, NASA
+     polynomials
+   - :ref:`Transport Properties <theory_transport>` — Chapman--Enskog theory,
+     collision integrals, viscosity, conductivity, diffusion
+   - :ref:`Chemical Kinetics <theory_kinetics>` — Arrhenius rates,
+     microreversibility, source terms, energy exchange, analytical Jacobians
+   - :ref:`Nonequilibrium Models <theory_noneq>` — MT, CG, CR, StS model
+     hierarchy and polymorphic dispatch
+   - :ref:`Equilibrium Composition <theory_equilibrium>` — Newton solver,
+     Schur complement, Debye--Hückel corrections
+
+   For worked examples with input files and plots, see the
+   :ref:`Examples Guide <examples_guide>`.
+
+This chapter presents the theoretical framework underlying PLATO: the
+governing equations for nonequilibrium multicomponent gas and plasma flows,
+the thermodynamic and transport closures, the chemical kinetics models, and
+the LTE simplification. Unless otherwise stated, the material follows
+the reference paper [MunafoPanesi2025]_:
+
+   Munafò & Panesi, "PLATO: a Library for the Thermodynamics, Transport, and
+   Kinetics of Multicomponent Gases and Plasmas," *Journal of Thermophysics
+   and Heat Transfer*, Vol. 39, No. 4, 2025.
+   DOI: `10.2514/1.T7097 <https://doi.org/10.2514/1.T7097>`_
+
+
+.. _phys_introduction:
+
+Introduction
+============
+
+PLATO implements the **nonequilibrium kinetic theory for dilute gases**,
+following the Chapman--Enskog (CE) method applied to the Boltzmann equation
+[Chapman1970]_, [Ferziger1972]_. The key modeling assumptions are:
+
+1. **Semiclassical framework** — classical translational energy, quantum
+   internal energy (rotation, vibration, electronic excitation).
+2. **Collision-dominated regime** — the gas is close enough to a local
+   Maxwellian that the first-order CE expansion (Navier--Stokes level) is
+   valid.
+3. **Quasi-neutral plasma** — charge separation occurs only at the Debye
+   scale; the plasma is electrically neutral at the continuum scale.
+4. **Unmagnetized plasma** — the electron Hall parameter is small, so the
+   magnetic field does not significantly modify transport coefficients.
+5. **Maxwellian reaction regime** — transport properties are unaffected by
+   inelastic collisions, except for resonant charge transfer which enters
+   the collision integrals.
+
+Within this framework, PLATO provides a hierarchy of physicochemical models
+of increasing complexity:
+
+- **Multitemperature (MT)** models — Park-style [Park1989]_, correlation-based.
+- **Coarse-grained (CG)** reduced-order models — grouping of internal
+  levels into bins.
+- **Collisional-radiative (CR)** models — resolved electronic levels.
+- **State-to-state (StS)** models — fully resolved rovibronic levels.
+
+All models share the same governing equation structure; they differ in the
+definition of what constitutes a "species" and in how internal energy modes
+are described.
+
+
+.. _phys_species_temp:
+
+Species and Temperature Structure
+=================================
+
+Species Set
+-----------
+
+The species set is partitioned as
+
+.. math::
+
+   \mathcal{S} = \{e\} \cup \mathcal{H}
+
+where :math:`e` denotes free electrons and :math:`\mathcal{H}` the heavy
+particles (atoms, molecules, and their ions). The heavy-particle set is
+further decomposed as :math:`\mathcal{H} = \mathcal{H}^n \cup
+\mathcal{H}^c`, with :math:`\mathcal{H}^n` = neutrals and
+:math:`\mathcal{H}^c` = charged heavy particles.
+
+The meaning of "species" differs across model fidelity levels:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Model
+     - Definition of species
+   * - **MT**
+     - Chemical components: N\ :sub:`2`, O, NO\ :sup:`+`, etc.
+   * - **CG**
+     - Grouped internal levels (bins): N\ :sub:`2`\ (g=1), N\ :sub:`2`\ (g=2), ...
+   * - **CR**
+     - Resolved electronic states: N(\ :sup:`4`\ S), N(\ :sup:`2`\ D), N(\ :sup:`2`\ P), ...
+   * - **StS**
+     - Fully resolved rovibronic levels: N\ :sub:`2`\ (v, J, el), ...
+
+This distinction is central to PLATO's design: the same transport and
+kinetics algorithms operate on any species set, from 5-species air
+(MT) to thousands of pseudo-species (StS).
+
+Temperature Structure
+---------------------
+
+The gas is characterized by the following temperatures:
+
+- :math:`T_h` — heavy-particle translational temperature.
+- :math:`T_e` — free-electron translational temperature (distinct from
+  :math:`T_h` due to the large electron-heavy mass disparity).
+- :math:`\tilde{T}_1, \ldots, \tilde{T}_m` — nonequilibrium internal-mode
+  temperatures (vibrational, rotational, electronic), used in MT and CG
+  models only.
+
+The set :math:`\mathcal{I}` denotes the internal degrees of freedom that
+are in thermal nonequilibrium with translation. In CR/StS models,
+:math:`\mathcal{I} = \emptyset` because the populations of individual
+levels are tracked explicitly.
+
+**Two-temperature model (Park)**:
+The most common MT specialization sets :math:`T_e = \tilde{T}_v =
+\tilde{T}_{el} \equiv T_{ve}` (vibronic temperature), so that a single
+additional equation (for the combined vibro-electronic energy) replaces the
+separate internal-mode and electron-energy equations.
+
+
+.. _phys_governing_eqs:
+
+Governing Equations
+===================
+
+NLTE System
+-----------
+
+The full nonequilibrium system comprises the following conservation
+equations.
+
+**Species continuity** (:math:`s \in \mathcal{S}`):
+
+.. math::
+   :label: eq_species
+
+   \frac{\partial \rho_s}{\partial t}
+   + \nabla \cdot \bigl[\rho_s (\mathbf{v} + \mathbf{U}_s)\bigr]
+   = \omega_s
+
+where :math:`\rho_s` is the species partial density, :math:`\mathbf{v}` is
+the mass-averaged velocity, :math:`\mathbf{U}_s` is the species diffusion
+velocity, and :math:`\omega_s` is the mass production rate.
+
+**Global momentum**:
+
+.. math::
+   :label: eq_momentum
+
+   \frac{\partial (\rho \mathbf{v})}{\partial t}
+   + \nabla \cdot (\rho \mathbf{v} \otimes \mathbf{v} + p\,\mathbf{I})
+   = \nabla \cdot \boldsymbol{\tau}
+   + \mathbf{J} \times \mathbf{B}
+
+where :math:`p` is the total pressure, :math:`\boldsymbol{\tau}` is the
+viscous stress tensor, :math:`\mathbf{J}` is the current density, and
+:math:`\mathbf{B}` is the magnetic field.
+
+**Global energy**:
+
+.. math::
+   :label: eq_energy
+
+   \frac{\partial (\rho E)}{\partial t}
+   + \nabla \cdot (\rho H \mathbf{v})
+   = \nabla \cdot (\boldsymbol{\tau} \cdot \mathbf{v} - \mathbf{q})
+   + \Omega + \mathbf{J} \cdot \mathbf{E}
+
+where :math:`E = e + \tfrac{1}{2}|\mathbf{v}|^2` is the total energy per
+unit mass, :math:`H = h + \tfrac{1}{2}|\mathbf{v}|^2` is the total
+enthalpy, :math:`\mathbf{q}` is the total heat flux, and :math:`\Omega`
+is the volumetric energy source (e.g., radiation).
+
+**Nonequilibrium internal energy** (for each mode
+:math:`i \in \mathcal{I}`):
+
+.. math::
+   :label: eq_internal
+
+   \frac{\partial (\rho e_i)}{\partial t}
+   + \nabla \cdot (\rho e_i \mathbf{v})
+   = -\nabla \cdot \mathbf{q}_i + \Omega_i
+
+where :math:`e_i` is the internal energy per unit mass for mode :math:`i`,
+:math:`\mathbf{q}_i` is the internal-mode heat flux, and :math:`\Omega_i`
+is the energy exchange source term for that mode.
+
+**Free-electron energy**:
+
+.. math::
+   :label: eq_electron
+
+   \frac{\partial (\rho_e \varepsilon_e)}{\partial t}
+   + \nabla \cdot (\rho_e \varepsilon_e \mathbf{v})
+   = -\nabla \cdot \mathbf{q}_e - p_e\,\nabla \cdot \mathbf{v}
+   + \Omega_e + \mathbf{J}_e \cdot \mathbf{E}'
+
+where :math:`\varepsilon_e = \tfrac{3}{2}(k_B/m_e)T_e` is the electron
+translational energy per unit mass, :math:`p_e = n_e k_B T_e` is the
+electron pressure, :math:`\Omega_e` accounts for energy exchange with heavy
+particles, and :math:`\mathbf{E}' = \mathbf{E} + \mathbf{v} \times
+\mathbf{B}` is the electric field in the hydrodynamic frame.
+
+LTE System
+----------
+
+Under local thermodynamic equilibrium (LTE), all temperatures are equal
+(:math:`T_h = T_e = \tilde{T}_i \equiv T`), the composition is determined
+by the law of mass action, and the species and internal energy equations are
+replaced by algebraic relations. The governing equations reduce to:
+
+**Global mass**:
+
+.. math::
+   :label: eq_lte_mass
+
+   \frac{\partial \rho}{\partial t}
+   + \nabla \cdot (\rho \mathbf{v}) = 0
+
+**Global momentum**:
+
+.. math::
+   :label: eq_lte_momentum
+
+   \frac{\partial (\rho \mathbf{v})}{\partial t}
+   + \nabla \cdot (\rho \mathbf{v} \otimes \mathbf{v} + p\,\mathbf{I})
+   = \nabla \cdot \boldsymbol{\tau}
+
+**Global energy**:
+
+.. math::
+   :label: eq_lte_energy
+
+   \frac{\partial (\rho E)}{\partial t}
+   + \nabla \cdot (\rho H \mathbf{v})
+   = \nabla \cdot (\boldsymbol{\tau} \cdot \mathbf{v} - \mathbf{q})
+
+
+.. _phys_thermodynamics:
+
+Thermodynamics
+==============
+
+Equation of State
+-----------------
+
+The mixture is an ideal gas obeying Dalton's law:
+
+.. math::
+   :label: eq_dalton
+
+   p = p_h + p_e = n_h k_B T_h + n_e k_B T_e
+
+where :math:`n_h = \sum_{s \in \mathcal{H}} n_s` is the total heavy-particle
+number density and :math:`n_e` is the free-electron number density. For a
+single-temperature gas (:math:`T_h = T_e = T`), this simplifies to
+:math:`p = n k_B T`.
+
+The total number density in terms of pressure and temperatures:
+
+.. math::
+   :label: eq_number_density
+
+   n = \frac{p}{k_B T_h \bigl[1 + x_e (T_e / T_h - 1)\bigr]}
+
+where :math:`x_e = n_e / n` is the electron mole fraction.
+
+Energy Content
+--------------
+
+The total internal energy per unit mass is decomposed as:
+
+.. math::
+   :label: eq_energy_decomp
+
+   e = \sum_{s \in \mathcal{H}} y_s
+       \bigl[e^{tr}_s(T_h) + e^*_s(T_h, \tilde{T}_1, \ldots)\bigr]
+     + \sum_{s \in \mathcal{S}} y_s\, e^f_s
+     + \sum_{i \in \mathcal{I}} e_i
+     + \varepsilon_e
+
+where :math:`y_s = \rho_s / \rho` is the mass fraction, :math:`e^{tr}_s` is
+the translational energy, :math:`e^*_s` collects the internal mode energies,
+:math:`e^f_s` is the formation energy at the reference temperature, and
+:math:`\varepsilon_e` is the free-electron translational energy.
+
+**Total energy and enthalpy**:
+
+.. math::
+
+   E = e + \tfrac{1}{2}|\mathbf{v}|^2, \qquad
+   H = h + \tfrac{1}{2}|\mathbf{v}|^2, \qquad
+   h = e + p/\rho
+
+Internal Energy Models
+----------------------
+
+PLATO provides two thermodynamic paths, selected at configure time.
+
+**Path 1: Partition-function-based (default)**
+
+The species internal energy is computed from statistical mechanics using
+the partition function :math:`Z_s(T)`:
+
+.. math::
+
+   e^{int}_s(T) = \frac{k_B T^2}{m_s}
+   \frac{\partial \ln Z_s}{\partial T}
+
+The partition function is built from the following contributions:
+
+*Translational energy* (3 degrees of freedom):
+
+.. math::
+   :label: eq_e_trans
+
+   e^{tr}_s(T) = \frac{3}{2}\frac{k_B}{m_s}\,T
+
+*Rigid-rotor rotational energy* (linear molecules):
+
+.. math::
+   :label: eq_e_rot
+
+   e^{rot}_s(T_r) = \frac{k_B}{m_s}\,T_r
+
+*Harmonic-oscillator vibrational energy*:
+
+.. math::
+   :label: eq_e_vib
+
+   e^{vib}_s(T_v) = \frac{k_B}{m_s}
+   \frac{\theta^v_s}{\exp(\theta^v_s / T_v) - 1}
+
+where :math:`\theta^v_s` is the characteristic vibrational temperature.
+
+*Electronic energy* (Boltzmann-weighted sum over levels):
+
+.. math::
+   :label: eq_e_elec
+
+   e^{el}_s(T_{el}) = \frac{1}{m_s}
+   \frac{\sum_k g_k\, \epsilon_k\, \exp(-\epsilon_k / k_B T_{el})}
+        {\sum_k g_k\, \exp(-\epsilon_k / k_B T_{el})}
+
+where :math:`g_k` and :math:`\epsilon_k` are the degeneracy and energy of
+electronic level :math:`k`.
+
+*Formation energy*:
+
+.. math::
+
+   e^f_s = \Delta h^0_{f,s}(T_{ref}) - \frac{k_B T_{ref}}{m_s}
+
+where :math:`\Delta h^0_{f,s}` is the standard enthalpy of formation at the
+reference temperature :math:`T_{ref} = 298.15` K.
+
+The ``MODEL`` parameter in the thermodynamic data files selects which
+contributions are included:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 50 30
+
+   * - MODEL
+     - Components
+     - Typical species
+   * - ``RR_HO_EL``
+     - Rigid rotor + harmonic oscillator + electronic
+     - Molecules (MT)
+   * - ``EL``
+     - Electronic Boltzmann only
+     - Atoms (MT)
+   * - ``RR``, ``HO``, ``RR_HO``
+     - Partial combinations
+     - Molecules
+   * - ``NONE`` / ``STS``
+     - :math:`Z = g`, :math:`e = 0` (level as pseudo-species)
+     - CR/StS levels
+   * - ``GROUP`` / ``RR_GROUP``
+     - Table interpolation (coarse-grained bins)
+     - CG bins
+
+**Path 2: NASA 9-coefficient polynomials** (``--enable-nasa_poly`` /
+``-DPLATO_ENABLE_NASA_POLY=ON``)
+
+Thermodynamic properties are computed from piecewise polynomial fits:
+
+.. math::
+
+   \frac{C_p(T)}{R_s} = a_1 T^{-2} + a_2 T^{-1} + a_3
+   + a_4\,T + a_5\,T^2 + a_6\,T^3 + a_7\,T^4
+
+with analogous expressions for enthalpy :math:`h(T)` and entropy
+:math:`s(T)` (including integration constants :math:`a_8`, :math:`a_9`).
+This path provides entropy and Gibbs free energy, which are not available
+from the partition-function path.
+
+LTE Secondary Properties
+-------------------------
+
+At chemical equilibrium, secondary thermodynamic properties are obtained
+from the equation of state and composition derivatives. Because the
+composition itself depends on :math:`T` and :math:`p`, these derivatives
+involve the response of the equilibrium solver.
+
+*Specific heats*:
+
+.. math::
+
+   C_p = T\left(\frac{\partial s}{\partial T}\right)_p, \qquad
+   C_v = C_p - \frac{\alpha^2 T}{\rho\,\beta_T}
+
+*Coefficient of thermal expansion and isothermal compressibility*:
+
+.. math::
+
+   \alpha = -\frac{1}{\rho}\left(\frac{\partial \rho}{\partial T}\right)_p
+          = \frac{1}{T} + \frac{1}{R}\left(\frac{\partial R}{\partial T}\right)_p
+
+.. math::
+
+   \beta_T = \frac{1}{\rho}\left(\frac{\partial \rho}{\partial p}\right)_T
+           = \frac{1}{p} - \frac{1}{R}\left(\frac{\partial R}{\partial p}\right)_T
+
+where :math:`R = k_B / \bar{m}` is the mixture-specific gas constant.
+
+*Equilibrium speed of sound*:
+
+.. math::
+   :label: eq_speed_of_sound
+
+   c_{eq} = \sqrt{\frac{\gamma_{eq}}{\rho\,\beta_T}}, \qquad
+   \gamma_{eq} = \frac{C_p}{C_v}
+
+*Generalized adiabatic exponents* [Mihalas1984]_:
+
+.. math::
+   :label: eq_gamma1
+
+   \Gamma_1 = \left(\frac{\partial \ln p}{\partial \ln \rho}\right)_s
+            = c_{eq}^2 \frac{\rho}{p}
+
+.. math::
+   :label: eq_gamma2
+
+   \frac{\Gamma_2}{\Gamma_2 - 1}
+   = \left(\frac{\partial \ln p}{\partial \ln T}\right)_s
+   = \frac{C_p\,\rho}{\alpha\,p}
+
+.. math::
+   :label: eq_gamma3
+
+   \Gamma_3 - 1
+   = \left(\frac{\partial \ln T}{\partial \ln \rho}\right)_s
+   = \frac{\alpha}{\rho\,C_v\,\beta_T}
+
+These reduce to :math:`\Gamma_1 = \Gamma_2 = \Gamma_3 = \gamma` for a
+calorically perfect gas.
+
+Equilibrium Composition
+-----------------------
+
+The LTE composition is computed by solving a nonlinear system combining:
+
+1. Element conservation (atom-balance constraints)
+2. Normalization (:math:`\sum X_s = 1`)
+3. Law of mass action (equilibrium constants :math:`K_{eq}` from partition
+   function ratios or NASA Gibbs free energy)
+
+PLATO uses a Newton--Raphson solver in log-space following
+[Bottin1999]_, with Schur-complement reduction. Convergence criterion:
+:math:`\log_{10}(\|r\|_2) < -12`. A Debye--Huckel corrected variant is
+available for ionized plasmas (ionization potential lowering, Coulomb
+pressure correction, partition function truncation via Griem's criterion).
+
+
+.. _phys_transport:
+
+Transport Properties
+====================
+
+All transport properties are derived from the first-order Chapman--Enskog
+solution to the Boltzmann equation [Magin2004]_. The resulting expressions
+involve collision integrals (see :ref:`phys_collision_integrals`) and are
+solved as linear systems of the form
+:math:`\mathbf{G}\,\mathbf{z} = \mathbf{b}`, where :math:`\mathbf{G}`
+depends on species mole fractions and collision integrals.
+
+Viscosity
+---------
+
+Newton's law for the viscous stress tensor:
+
+.. math::
+   :label: eq_viscosity
+
+   \boldsymbol{\tau} = \mu\bigl(\nabla\mathbf{v} + \nabla\mathbf{v}^T
+   - \tfrac{2}{3}\,\mathbf{I}\,\nabla\cdot\mathbf{v}\bigr)
+
+The shear viscosity :math:`\mu` is computed from the heavy-particle
+subsystem at 1st Sonine order:
+
+.. math::
+
+   \mu = \mathbf{z}^\mu \cdot \mathbf{x}_h, \qquad
+   \mathbf{G}^\mu\,\mathbf{z}^\mu = \mathbf{x}_h
+
+where :math:`\mathbf{x}_h` is the vector of heavy-particle mole fractions
+and :math:`\mathbf{G}^\mu` is a symmetric positive-definite
+:math:`n_h \times n_h` matrix depending on :math:`\bar{Q}^{(l,r)}_{sp}`
+collision integrals. The system is solved by Cholesky (LDL\ :sup:`T`)
+decomposition.
+
+Heat Flux
+---------
+
+The total heat flux has three contributions:
+
+.. math::
+   :label: eq_heat_flux
+
+   \mathbf{q} = \underbrace{-(\lambda^{tr}_h + \lambda^*_h)\nabla T_h
+   + \sum_{s \in \mathcal{H}} \rho_s\,\mathbf{U}_s\,h_s}_{\text{heavy}}
+   + \underbrace{\sum_{i \in \mathcal{I}} \mathbf{q}_i}_{\text{internal modes}}
+   + \underbrace{\mathbf{q}_e}_{\text{electron}}
+
+*Internal-mode heat flux* (for :math:`i \in \mathcal{I}`):
+
+.. math::
+
+   \mathbf{q}_i = -\lambda^i_h\,\nabla\tilde{T}_i
+   + \sum_{s \in \mathcal{H}} \rho_s\,\mathbf{U}_s\,e^i_s
+
+*Free-electron heat flux*:
+
+.. math::
+
+   \mathbf{q}_e = -\lambda^{tr}_e\,\nabla T_e
+   + \rho_e\,\mathbf{U}_e\,h^{tr}_e
+   + n k_B T_h \sum_{s \in \mathcal{S}} \kappa^e_{T,s}\,\mathbf{U}_s
+
+where :math:`\kappa^e_{T,s}` are the electron thermal diffusion ratios.
+
+Thermal Conductivity
+--------------------
+
+**Heavy translational** :math:`\lambda^{tr}_h` (1st Sonine):
+
+.. math::
+
+   \lambda^{tr}_h = \mathbf{z}^\lambda \cdot \mathbf{x}_h, \qquad
+   \mathbf{G}^\lambda\,\mathbf{z}^\lambda = \mathbf{x}_h
+
+Symmetric :math:`n_h \times n_h` system, solved by Cholesky.
+
+**Internal modes** :math:`\lambda^*_h` (generalized Eucken correction):
+
+.. math::
+
+   \lambda^*_h = \sum_{s \in \mathcal{H}} \frac{x_s\,C^{int}_{v,s}\,\mu_s}
+   {m_s}
+
+where :math:`C^{int}_{v,s}` is the internal specific heat at constant volume
+and :math:`\mu_s` is the pure-species viscosity.
+
+**Electron translational** :math:`\lambda^{tr}_e` (3rd Sonine —
+higher order needed for accuracy):
+
+.. math::
+   :label: eq_lambda_e
+
+   \lambda^{tr}_e = \frac{75}{64}\,k_B\,
+   \frac{x_e^2 \sqrt{2\pi k_B T_e / m_e}}
+   {\Lambda^{11}_{ee} - (\Lambda^{12}_{ee})^2 / \Lambda^{22}_{ee}}
+
+where :math:`\Lambda^{ij}_{ee}` are 2\ :sup:`nd` and 3\ :sup:`rd` Sonine
+expansion coefficients involving electron-heavy collision integrals. The
+expression is evaluated analytically (2x2 matrix inversion).
+
+**Reactive thermal conductivity** (LTE only):
+
+.. math::
+   :label: eq_lambda_rea
+
+   \lambda^{rea} = -\sum_{s \in \mathcal{S}} \rho_s\,\tilde{U}_s\,
+   h_s(T;\, T_{ref})
+
+where :math:`\tilde{U}_s` are the equilibrium diffusion velocities driven
+by :math:`\nabla T` alone (computed by solving the Stefan--Maxwell system
+with the chemical potential gradient as driving force). This can be the
+dominant contribution to thermal conductivity in dissociating/ionizing
+regimes.
+
+Diffusion Velocities (Stefan--Maxwell)
+--------------------------------------
+
+The species diffusion velocities :math:`\mathbf{U}_s` are obtained from
+the Stefan--Maxwell equations. For heavy particles
+:math:`s \in \mathcal{H}`:
+
+.. math::
+   :label: eq_stefan_maxwell_heavy
+
+   \sum_{p \in \mathcal{S}} G^U_{sp}\,\mathbf{U}_p
+   - \kappa_s\,\mathbf{E}'
+   = -\mathbf{d}'_s
+
+For electrons:
+
+.. math::
+   :label: eq_stefan_maxwell_electron
+
+   \sum_{p \in \mathcal{S}} G^U_{ep}\,\mathbf{U}_p
+   - \frac{T_h}{T_e}\,\kappa_e\,\mathbf{E}'
+   = -\frac{T_h}{T_e}\,\mathbf{d}'_e
+
+The modified driving forces include pressure, concentration, and thermal
+diffusion:
+
+.. math::
+
+   \mathbf{d}'_s = \frac{1}{n k_B T_h}
+   \bigl[\nabla(n_s k_B T_s) - y_s\,p\,\nabla\ln p\bigr]
+   + \frac{\kappa^h_{T,s}}{T_h}\,\nabla T_h
+   + \frac{\kappa^e_{T,s}\,T_s}{T_e^2}\,\nabla T_e
+
+Two constraints close the system: (i) mass conservation
+:math:`\sum_{s \in \mathcal{S}} \rho_s\,\mathbf{U}_s = 0`, and
+(ii) **ambipolar diffusion** (no net current in the absence of an
+external field):
+
+.. math::
+
+   \sum_{s \in \mathcal{S}} \kappa_s\,\mathbf{U}_s = 0
+
+For **neutral mixtures**, the Stefan--Maxwell matrix is symmetric and solved
+by Cholesky decomposition (:math:`n_c \times n_c`). For **ionized
+mixtures**, the matrix is non-symmetric (:math:`(n_c+1) \times (n_c+1)`,
+including the ambipolar constraint) and solved by LU factorization (Crout's
+method).
+
+Thermal Diffusion Ratios
+------------------------
+
+The thermal diffusion ratios :math:`\kappa^h_{T,s}` (heavy) and
+:math:`\kappa^e_{T,s}` (electron) appear in the Stefan--Maxwell driving
+forces and in the heat flux. They are computed from the same collision
+integral data using auxiliary linear systems at 1st Sonine order.
+
+Electrical Conductivity
+-----------------------
+
+**Full expression** (Ohm's law):
+
+.. math::
+
+   \sigma = \sum_{s,p \in \mathcal{S}} n_s\,q_s\,D_{sp}\,\kappa_p
+
+where :math:`D_{sp}` are multicomponent diffusion coefficients and
+:math:`\kappa_s = n_s q_s / (n k_B T_s)` are the reduced charges.
+
+**Electron approximation** (usually sufficient):
+
+.. math::
+   :label: eq_sigma_e
+
+   \sigma_e = \frac{3}{16}\,\frac{x_e^2\,q_e^2}{k_B T_e}\,
+   \sqrt{\frac{2\pi k_B T_e}{m_e}}\,
+   \frac{\Lambda^{11}_{ee}}
+   {\Lambda^{00}_{ee}\,\Lambda^{11}_{ee} - (\Lambda^{01}_{ee})^2}
+
+PLATO computes :math:`\sigma_e` at 2nd Sonine order by default (analytic
+2x2 inversion), with the option of 3rd-order (Cholesky 3x3).
+
+**Generalized Ohm's law**:
+
+.. math::
+
+   \mathbf{J} \approx \mathbf{J}_e
+   \approx \sigma_e\!\left(\mathbf{E}'
+   - \frac{\nabla p_e}{n_e\,q_e}\right)
+
+Transport System Summary
+------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 25 20 15
+
+   * - Property
+     - Sonine order
+     - System size
+     - Solver
+     - Symmetry
+   * - Viscosity :math:`\mu`
+     - 1st
+     - :math:`n_h \times n_h`
+     - Cholesky
+     - Symmetric
+   * - :math:`\lambda^{tr}_h`
+     - 1st
+     - :math:`n_h \times n_h`
+     - Cholesky
+     - Symmetric
+   * - :math:`\lambda^*_h`
+     - Eucken
+     - Closed-form
+     - —
+     - —
+   * - :math:`\lambda^{tr}_e`
+     - 3rd
+     - :math:`2 \times 2`
+     - Analytic
+     - —
+   * - :math:`\sigma_e`
+     - 2nd (default)
+     - :math:`2 \times 2`
+     - Analytic
+     - —
+   * - Neutral diffusion
+     - 1st
+     - :math:`n_c \times n_c`
+     - Cholesky
+     - Symmetric
+   * - Ionized diffusion
+     - 1st
+     - :math:`(n_c+1)^2`
+     - LU (Crout)
+     - Non-symmetric
+
+All solvers are self-contained direct methods (no external LAPACK
+dependency), chosen for robustness on these small
+:math:`\mathcal{O}(n_c)` systems.
+
+
+.. _phys_collision_integrals:
+
+Collision Integrals
+===================
+
+All transport properties are ultimately built from collision integrals,
+which encode the microscopic physics of binary interactions.
+
+Definition
+----------
+
+The reduced collision integrals are defined as:
+
+.. math::
+   :label: eq_colint
+
+   \bar{Q}^{(l,r)}_{sp}
+   = \frac{4(l+1)}{(r+1)!\,[2l + 1 - (-1)^l]}
+   \int_0^\infty e^{-\gamma^2}\,\gamma^{2r+3}\,Q^l_{sp}(\gamma)\,d\gamma
+
+where :math:`\gamma^2 = \tfrac{1}{2} m_{sp} g^2 / (k_B T_{sp})` is the
+reduced collision energy, :math:`g` is the relative velocity,
+:math:`m_{sp} = m_s m_p / (m_s + m_p)` is the reduced mass,
+:math:`T_{sp}` is the effective temperature for the :math:`(s,p)` pair,
+and :math:`Q^l_{sp}` is the :math:`l`-th order transport cross-section
+[Ferziger1972]_.
+
+.. note::
+
+   The notation :math:`\bar{Q}^{(l,r)}_{sp} = \pi\sigma^2_{sp}\,
+   \Omega^{(l,r)*}_{sp}` absorbs the reference cross-section
+   :math:`\pi\sigma^2_{sp}` into the definition, following the convention
+   used in PLATO and EGLIB. This differs from some references where
+   :math:`\Omega^{(l,r)*}_{sp}` is dimensionless.
+
+Derived Ratios
+--------------
+
+The following ratios of collision integrals appear in the transport
+coefficient matrices:
+
+.. math::
+
+   A^*_{sp} = \frac{\bar{Q}^{(2,2)}_{sp}}{\bar{Q}^{(1,1)}_{sp}}, \qquad
+   B^*_{sp} = \frac{5\bar{Q}^{(1,2)}_{sp} - 4\bar{Q}^{(1,3)}_{sp}}
+              {\bar{Q}^{(1,1)}_{sp}}, \qquad
+   C^*_{sp} = \frac{\bar{Q}^{(1,2)}_{sp}}{\bar{Q}^{(1,1)}_{sp}}
+
+Binary Diffusion Coefficients
+-----------------------------
+
+The binary diffusion coefficient for the :math:`(s,p)` pair:
+
+.. math::
+   :label: eq_bin_diff
+
+   D_{sp} = \frac{3}{16\,n\,\bar{Q}^{(1,1)}_{sp}}
+   \sqrt{\frac{2\pi k_B T_{sp}(m_s + m_p)}{m_s m_p}}
+
+Interaction Models
+------------------
+
+PLATO stores precomputed collision integrals on a uniform temperature grid
+(default 200--100200 K, loaded at initialization from ``database/transport/``).
+Multiple interaction models are available:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 25 30 25
+
+   * - Interaction
+     - Default model
+     - Alternative
+     - Source files
+   * - Neutral--neutral
+     - Gupta et al. curve fits [Gupta1991]_
+     - Lennard-Jones
+     - ``HH_NN``
+   * - Neutral--ion
+     - Gupta et al. curve fits
+     - Polarization/Langevin + resonant charge exchange
+     - ``HH_NI``
+   * - Electron--neutral
+     - Gupta et al. curve fits
+     - Capitelli (Laricchiuta/Bruno) [Bruno2002]_, Andre 7-parameter
+     - ``eN``
+   * - Charged--charged
+     - Screened Coulomb
+     - —
+     - Computed at runtime (Debye length)
+
+At runtime, neutral-heavy and electron-heavy integrals use **linear
+interpolation** on the precomputed tables. Charged-charged integrals are
+computed **analytically** at each call via polynomial fits to
+Mason--Munn--Smith data [Mason1967]_, since they depend on the Debye
+screening length (which varies with the local plasma state).
+
+
+.. _phys_kinetics:
+
+Chemical Kinetics
+=================
+
+PLATO computes mass production rates :math:`\omega_s` and energy exchange
+terms :math:`\Omega_i` from a database of elementary reactions.
+
+Collisional Processes
+---------------------
+
+The reference paper classifies eight types of collisional processes:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 5 20 45 15 15
+
+   * - #
+     - Type
+     - Example
+     - Temperature
+     - Model
+   * - 1
+     - Dissociation (heavy impact)
+     - N\ :sub:`2` + M :math:`\rightleftharpoons` N + N + M
+     - :math:`T_h` or :math:`T_{Tv}`
+     - MT / StS
+   * - 2
+     - Dissociation (electron impact)
+     - N\ :sub:`2` + e :math:`\rightleftharpoons` N + N + e
+     - :math:`T_e`
+     - MT / StS
+   * - 3
+     - Predissociation
+     - N\ :sub:`2`\ (A) :math:`\rightarrow` N + N
+     - :math:`T_h`
+     - StS
+   * - 4
+     - Excitation (heavy impact)
+     - N(i) + M :math:`\rightleftharpoons` N(j) + M
+     - :math:`T_h`
+     - CR / StS
+   * - 5
+     - Excitation (electron impact)
+     - N(i) + e :math:`\rightleftharpoons` N(j) + e
+     - :math:`T_e`
+     - CR / StS
+   * - 6
+     - Ionization (electron impact)
+     - N + e :math:`\rightleftharpoons` N\ :sup:`+` + e + e
+     - :math:`T_e`
+     - MT / StS
+   * - 7
+     - Associative ionization
+     - N + O :math:`\rightleftharpoons` NO\ :sup:`+` + e
+     - :math:`T_h`
+     - MT
+   * - 8
+     - Particle/charge exchange
+     - N\ :sub:`2` + O :math:`\rightleftharpoons` NO + N
+     - :math:`T_h`
+     - MT (Zel'dovich)
+
+Additionally, PLATO supports radiative processes:
+
+- **Bound-bound** line emission/absorption (line-by-line with Voigt profiles)
+- **Bound-free** photoionization (Kramers hydrogenic cross-section)
+- **Free-free** Bremsstrahlung (electron-ion Coulomb + electron-neutral)
+- **Radiative recombination**: N\ :sup:`+` + e :math:`\rightarrow`
+  N + :math:`h\nu`
+
+Rate Coefficients
+-----------------
+
+**Forward rates** use the modified Arrhenius form:
+
+.. math::
+   :label: eq_arrhenius
+
+   k_f(T) = A\,T^n\,\exp\!\left(-\frac{E_a}{k_B T}\right)
+
+where :math:`A`, :math:`n`, :math:`E_a` are read from the kinetics
+database file. The activation temperature :math:`c = E_a / k_B` is
+stored directly.
+
+**MT dissociation**: For reactions governed by the Park two-temperature
+model, the controlling temperature is the geometric mean:
+
+.. math::
+
+   T_{Tv} = T_h^{1 - \alpha}\,T_{ve}^{\alpha}
+
+with :math:`\alpha` typically between 0.3 and 0.7.
+
+Microreversibility and Detailed Balance
+----------------------------------------
+
+**Backward rates are never read from the database.** They are always
+computed from detailed balance:
+
+.. math::
+   :label: eq_microreversibility
+
+   k_b(T) = \frac{k_f(T)}{K_{eq}(T)}
+
+The equilibrium constant :math:`K_{eq}` is obtained from:
+
+- **Partition function ratios** (default path):
+
+  .. math::
+
+     K_{eq}(T) = \prod_s \left(\frac{Z_s(T)}{V}\right)^{\nu_s}
+     \exp\!\left(-\frac{\Delta e^f}{k_B T}\right)
+
+  where :math:`\nu_s` are stoichiometric coefficients and
+  :math:`\Delta e^f` is the formation energy difference.
+
+- **NASA Gibbs free energy** (``--enable-nasa_poly``):
+
+  .. math::
+
+     \ln K_{eq}(T) = -\frac{\Delta G^0(T)}{R\,T}
+
+For **CR/StS** models, the level-specific reverse rate follows directly:
+
+.. math::
+
+   k_{ji}(T_e) = k_{ij}(T_e)\,\frac{g_i}{g_j}\,
+   \exp\!\left(\frac{e^f_j - e^f_i}{k_B T_e}\right)
+
+where :math:`g_i`, :math:`g_j` are level degeneracies and :math:`e^f_i`,
+:math:`e^f_j` are level formation energies per particle.
+
+Mass Production Terms
+---------------------
+
+The source term pipeline in PLATO:
+
+1. Convert partial densities :math:`\rho_s \to n_s`.
+2. Clamp temperatures (enforce positivity).
+3. Compute forward rate coefficients :math:`k_f` and backward rates
+   :math:`k_b = k_f / K_{eq}`.
+4. Loop over reaction categories, accumulate:
+
+   .. math::
+
+      \dot{n}_s = \sum_r \nu_{s,r}\bigl(k_{f,r}\,\Pi_{\text{react}}
+                  - k_{b,r}\,\Pi_{\text{prod}}\bigr)
+
+5. Convert to mass production rates: :math:`\omega_s = m_s\,\dot{n}_s`.
+
+Energy Exchange Terms
+---------------------
+
+PLATO computes six energy exchange mechanisms:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 25 65
+
+   * - Term
+     - Physics
+     - Model
+   * - :math:`\Omega^{VT}`
+     - Vibration--Translation
+     - Landau--Teller with Millikan--White relaxation times + Park
+       high-temperature correction
+   * - :math:`\Omega^{VE}`
+     - Vibration--Electron
+     - Piecewise polynomial :math:`\tau_{VE}(p_e, T_e)` for
+       N\ :sub:`2`--e
+   * - :math:`\Omega^{TE}`
+     - Elastic electron--heavy
+     - :math:`\Omega^{TE} = \tfrac{3}{2} n_e k_B (T_h - T_e) / \tau_{eh}`
+       (see below)
+   * - :math:`\Omega^{CV}`
+     - Chemistry--Vibration coupling
+     - :math:`\Omega^{CV} = \sum_m \omega_m\,e^v_m(T_v)` (post-kinetics)
+   * - :math:`\Omega^{CEL}`
+     - Chemistry--Electronic coupling
+     - :math:`\Omega^{CEL} = \sum_s \omega_s\,e^{el}_s(T_e)` (post-kinetics)
+   * - :math:`\Omega^{ff}`
+     - Free-free Bremsstrahlung
+     - Kramers formula (Gaunt factor = 1)
+
+**Electron-heavy elastic energy exchange** :math:`\Omega^{TE}`:
+
+Following [Petschek1957]_, the energy transferred from heavy particles to
+free electrons by elastic collisions is:
+
+.. math::
+   :label: eq_omega_te
+
+   \Omega^{TE} = \frac{3}{2}\,n_e\,k_B\,\frac{T_h - T_e}{\tau_{eh}}
+
+where the electron--heavy relaxation time is:
+
+.. math::
+   :label: eq_tau_eh
+
+   \frac{1}{\tau_{eh}} = \frac{8}{3}
+   \sqrt{\frac{8 k_B T_e}{\pi m_e}}
+   \sum_{s \in \mathcal{H}} \frac{m_e}{m_s}\,n_s\,
+   \bar{Q}^{(1,1)}_{es}
+
+This expression is derived from the Maxwellian-averaged momentum-transfer
+cross-section; the full derivation is given in PLATO's internal theory
+document (``doc/theory/doc.tex``).
+
+Analytical Jacobians
+--------------------
+
+PLATO provides the full analytical Jacobian:
+
+.. math::
+
+   \mathbf{J} = \frac{\partial(\boldsymbol{\omega},\,\boldsymbol{\Omega})}
+   {\partial(\boldsymbol{\rho},\,\mathbf{T})}
+
+including chain-rule contributions for the Park activation temperature
+:math:`T_{Tv}` and all energy exchange mechanisms. The mass-only Jacobian
+(:math:`n_s \times n_s`) is also available. For coarse-grained (CG) models,
+a **numerical** Jacobian (finite differences) is used due to the tabulated
+rate coefficients.
+
+
+.. _phys_lte_formulation:
+
+LTE Formulation
+===============
+
+Under LTE, the governing equations reduce to the Euler/Navier--Stokes
+system (Eqs. :eq:`eq_lte_mass`--:eq:`eq_lte_energy`) with the following
+closures.
+
+Simplified Transport
+--------------------
+
+The viscous stress tensor retains Newton's law (Eq. :eq:`eq_viscosity`),
+but the heat flux simplifies to:
+
+.. math::
+
+   \mathbf{q} = -\lambda\,\nabla T
+
+with total thermal conductivity:
+
+.. math::
+
+   \lambda = \lambda^{tr} + \lambda^{int} + \lambda^{rea}
+
+The **reactive thermal conductivity** :math:`\lambda^{rea}` (Eq.
+:eq:`eq_lambda_rea`) is computed by solving the Stefan--Maxwell system with
+the chemical potential gradient as the sole driving force and projecting
+the resulting diffusion velocities onto :math:`\nabla T`. This term can
+dominate the total conductivity in temperature ranges where dissociation or
+ionization is active.
+
+Equilibrium Composition Solver
+------------------------------
+
+The composition at each (:math:`p`, :math:`T`) or (:math:`\rho`, :math:`T`)
+point is obtained from:
+
+1. **Element conservation**: :math:`\sum_s \nu_{es}\,X_s = X_e^0` for each
+   element :math:`e`.
+2. **Normalization**: :math:`\sum_s X_s = 1`.
+3. **Law of mass action**: :math:`K_{eq,r}(T) = \prod_s X_s^{\nu_{sr}}
+   \cdot (p / p_0)^{\Delta\nu_r}`.
+
+The system is solved by Newton--Raphson iteration in the logarithms of the
+unknowns (ensuring positivity). A Schur complement reduction exploits the
+block structure of the Jacobian (element and species blocks). Convergence
+is typically achieved in 3--5 iterations for well-conditioned problems.
+
+
+.. _phys_references:
+
+References
+==========
+
+.. [Chapman1970] S. Chapman and T. G. Cowling, *The Mathematical Theory
+   of Non-Uniform Gases*, 3rd ed., Cambridge University Press, 1970.
+
+.. [Ferziger1972] J. H. Ferziger and H. G. Kaper, *Mathematical Theory
+   of Transport Processes in Gases*, North-Holland, 1972.
+
+.. [Mihalas1984] D. Mihalas and B. W. Mihalas, *Foundations of Radiation
+   Hydrodynamics*, Oxford University Press, 1984.
+
+.. [Petschek1957] H. E. Petschek and S. Byron, "Approach to Equilibrium
+   Ionization behind Strong Shock Waves in Argon," *Annals of Physics*,
+   Vol. 1, No. 3, 1957, pp. 270--315.
+
+.. [Bottin1999] B. Bottin, D. Vanden Abeele, M. Carbonaro, G. Degrez,
+   and G. S. R. Sarma, "Thermodynamic and Transport Properties for
+   Inductive Plasma Modeling," *Journal of Thermophysics and Heat Transfer*,
+   Vol. 13, No. 3, 1999, pp. 343--350.
+
+.. [Gupta1991] R. N. Gupta, K. P. Lee, R. A. Thompson, and J. M. Yos,
+   "Calculations and Curve Fits of Thermodynamic and Transport Properties
+   for Equilibrium Air to 30000 K," NASA RP-1260, 1991.
+
+.. [Bruno2002] D. Bruno, M. Capitelli, C. Catalfamo, and A. Laricchiuta,
+   "Transport of Internal Electronic Energy in Atomic Hydrogen Thermal
+   Plasmas," *Chemical Physics Letters*, Vol. 360, 2002, pp. 221--228.
+
+.. [Mason1967] E. A. Mason, R. J. Munn, and F. J. Smith, "Transport
+   Coefficients of Ionized Gases," *Physics of Fluids*, Vol. 10, No. 8,
+   1967, pp. 1827--1832.
+
+.. [Park1989] C. Park, "Assessment of Two-Temperature Kinetic Model for
+   Ionizing Air," *Journal of Thermophysics and Heat Transfer*, Vol. 3,
+   No. 3, 1989, pp. 233--244.
+
+.. [Magin2004] T. E. Magin and G. Degrez, "Transport Algorithms for
+   Partially Ionized and Unmagnetized Plasmas," *Journal of Computational
+   Physics*, Vol. 198, No. 2, 2004, pp. 424--449.
+
+.. [MunafoPanesi2025] A. Munafo and M. Panesi, "PLATO: a Library for
+   the Thermodynamics, Transport, and Kinetics of Multicomponent Gases
+   and Plasmas," *Journal of Thermophysics and Heat Transfer*, Vol. 39,
+   No. 4, 2025. DOI: `10.2514/1.T7097 <https://doi.org/10.2514/1.T7097>`_

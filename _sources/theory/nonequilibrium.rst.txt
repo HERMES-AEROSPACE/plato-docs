@@ -1,0 +1,280 @@
+.. _theory_noneq:
+
+=======================
+Nonequilibrium Models
+=======================
+
+This chapter describes the hierarchy of physicochemical models available in
+PLATO: multi-temperature (MT), coarse-grained (CG), collisional-radiative
+(CR), and state-to-state (StS). The presentation follows [Munafo_thesis]_
+(Chapter 3), which develops all four models within a unified framework for
+the N\ :sub:`2`--N system. All models share the same governing equation
+structure; they differ in the species set, the number of temperatures, and
+the granularity of internal energy resolution.
+
+
+.. figure:: figures/model_hierarchy.png
+   :width: 90%
+   :align: center
+
+   The four PLATO model levels with increasing fidelity and computational
+   cost. All share the same governing equation structure and transport
+   formulation; they differ in the species set and temperature description.
+
+
+Model Hierarchy
+===============
+
+.. list-table::
+   :widths: 15 15 30 25
+   :header-rows: 1
+
+   * - Model
+     - Acronym
+     - Species Set
+     - Temperatures
+   * - Multi-temperature
+     - MT
+     - Chemical species (e.g., N\ :sub:`2`, O\ :sub:`2`, NO, N, O)
+     - :math:`T_h, T_v` (Park 2T) or :math:`T_h, T_v, T_e` (3T)
+   * - Coarse-grained
+     - CG
+     - Grouped internal levels as pseudo-species
+     - :math:`T_h` (+ group energies)
+   * - Collisional-radiative
+     - CR
+     - Resolved electronic levels
+     - :math:`T_h, T_e` (+ level populations)
+   * - State-to-state
+     - StS
+     - Fully resolved rovibronic levels
+     - :math:`T_h` (+ level populations)
+
+
+Multi-Temperature (Park 2T) Model
+==================================
+
+The standard two-temperature model [Park1989]_ is the simplest nonequilibrium
+description. It introduces two temperatures:
+
+- :math:`T_h` — heavy-particle translational-rotational temperature
+- :math:`T_v` — vibrational-electronic temperature (often set equal to :math:`T_e`)
+
+**Governing equations** (in addition to species continuity for each chemical
+species):
+
+.. math::
+   :label: eq_mt_energy_h
+
+   \frac{\partial \rho e_h}{\partial t} + \nabla \cdot (\rho e_h \mathbf{u})
+   = -p_h \nabla \cdot \mathbf{u} + \nabla \cdot (\lambda_h \nabla T_h)
+   + \Omega_{\mathrm{VT}} + \Omega_{\mathrm{TE}} + \Omega_{\mathrm{CV}}
+
+.. math::
+   :label: eq_mt_energy_v
+
+   \frac{\partial \rho e_v}{\partial t} + \nabla \cdot (\rho e_v \mathbf{u})
+   = \nabla \cdot (\lambda_v \nabla T_v)
+   - \Omega_{\mathrm{VT}} + \Omega_{\mathrm{VE}} - \Omega_{\mathrm{CV}}
+   - \Omega_{\mathrm{CEL}}
+
+where the energy exchange terms :math:`\Omega` are defined in
+:ref:`kinetics_transfer`.
+
+**Dissociation rates** use the Park activation temperature
+(:eq:`eq_park_T`):
+
+.. math::
+
+   T_{T_v} = T_h^{1-\alpha} \, T_v^{\alpha}
+
+This geometric average blends translational and vibrational influence on the
+dissociation threshold crossing.
+
+
+Coarse-Grained (CG) Model
+==========================
+
+The CG approach [Munafo_thesis]_ (Chapter 3) reduces the dimensionality of the StS model by
+**grouping** internal energy levels into a manageable number of bins
+(typically 5--50 groups per molecule).
+
+Each group (or "energy bin") :math:`k` is treated as a pseudo-species with:
+
+- Number density :math:`n_k = \sum_{i \in B_k} n_i`
+- Group reference energy :math:`\tilde{E}_k`
+- Group partition function :math:`\tilde{Q}_k(T)`
+
+**Group partition function** [Munafo_thesis]_ (Eq. 3.83):
+
+.. math::
+
+   \tilde{Q}_k(T) = \sum_{i \in B_k} g_i
+   \exp\!\left(-\frac{E_i - \tilde{E}_k}{k_{\mathrm{B}} T}\right)
+
+where :math:`B_k` is the set of rovibrational levels in group *k*.
+
+**Coarse-grained rate coefficients** are obtained by Boltzmann-averaging
+the StS rates over each group [Munafo_thesis]_ (Eqs. 3.58--3.59):
+
+.. math::
+
+   \tilde{k}_k^{\mathrm{dis}}(T) = \frac{1}{\tilde{Q}_k(T)}
+   \sum_{i \in B_k} g_i \, k_i^{\mathrm{dis}}(T)
+   \exp\!\left(-\frac{E_i - \tilde{E}_k}{k_{\mathrm{B}} T}\right)
+
+**Microreversibility** is enforced at the group level
+[Munafo_thesis]_ (Eq. 3.92):
+
+.. math::
+
+   \frac{\tilde{k}_k^{\mathrm{rec}}}{\tilde{k}_k^{\mathrm{dis}}}
+   = \frac{Q_{\mathrm{AB}}^{\mathrm{tra}} \, \tilde{Q}_k}
+   {Q_{\mathrm{A}}^{\mathrm{tra}} \, Q_{\mathrm{B}}^{\mathrm{tra}}}
+   \exp\!\left(\frac{E_{\mathrm{A}} + E_{\mathrm{B}} - \tilde{E}_k}
+   {k_{\mathrm{B}} T}\right)
+
+These pre-averaged rates are stored as binary lookup tables in
+``database/kinetics/{ng}g/`` and interpolated at runtime using bicubic
+interpolation.
+
+.. note::
+
+   CG kinetics use a **numerical Jacobian** (finite differences) rather than
+   analytical derivatives, because the tabulated rates do not provide
+   closed-form derivatives.
+
+Source: ``src/kinetics/kinetics_group.F90``.
+
+
+State-to-State (StS) Model
+===========================
+
+The full StS model treats each internal energy level as an independent
+species. For a diatomic molecule with :math:`N_v` vibrational and
+:math:`N_J` rotational levels, this can mean thousands of pseudo-species.
+
+**Species conservation** for level :math:`i`:
+
+.. math::
+
+   \frac{\partial \rho_i}{\partial t}
+   + \nabla \cdot (\rho_i \mathbf{u} + \mathbf{J}_i) = \dot{\omega}_i
+
+where :math:`\dot{\omega}_i` includes all state-specific inelastic and
+reactive processes.
+
+**Thermodynamic properties** of StS pseudo-species:
+
+- MODEL = ``NONE`` or ``STS`` in the database
+- :math:`Q_i = g_i` (degeneracy only, no Boltzmann sum)
+- :math:`e_i^{\mathrm{int}} = 0` (internal energy is zero above the level's own reference)
+- Formation energy :math:`e_{f,i}` encodes the level energy
+
+This is the key insight: in the StS model, the internal energy distribution
+is not assumed to follow any analytical distribution (Boltzmann, Treanor,
+etc.) — it emerges from the solution of the coupled kinetic equations.
+
+**No separate vibrational temperature** is needed because the distribution
+is resolved explicitly. The only temperature is :math:`T_h` for translational
+motion.
+
+
+Collisional-Radiative (CR) Model
+=================================
+
+The CR model resolves electronic energy levels while grouping rovibrational
+levels within each electronic state. It sits between MT and StS in complexity.
+
+Key features:
+
+- Electronic levels of atoms are resolved individually
+- Rovibrational states within each electronic manifold use Boltzmann
+  distributions at local temperatures
+- Radiative transitions (bound-bound, bound-free) compete with collisional
+  processes
+
+The CR model typically requires :math:`T_h` and :math:`T_e`, with electronic
+populations solved as part of the species system.
+
+
+.. _noneq_dispatch:
+
+Polymorphic Dispatch Mechanism
+==============================
+
+PLATO uses **procedure pointer arrays** to switch between models at runtime,
+avoiding explicit ``if/else`` branching in inner loops. The dispatch is
+configured in ``src/thermo/thermo_pointer.F90`` during initialization.
+
+The key arrays are:
+
+.. code-block:: fortran
+
+   ! Procedure pointer arrays (one entry per species)
+   procedure(Q_interface),   pointer :: comp_Q(:)       => null()
+   procedure(e_interface),   pointer :: comp_e(:)       => null()
+   procedure(s_interface),   pointer :: comp_s(:)       => null()
+   procedure(g_interface),   pointer :: comp_g(:)       => null()
+   procedure(cv_interface),  pointer :: comp_cv(:)      => null()
+
+Each species' MODEL flag determines which concrete function is assigned:
+
+- ``RR_HO_EL`` :math:`\to` ``rr_ho_el_Q``, ``rr_ho_el_e``, etc.
+- ``EL`` :math:`\to` ``el_Q``, ``el_e``, etc.
+- ``NONE/STS`` :math:`\to` ``constant_Q``, ``no_e``, etc.
+- ``GROUP`` :math:`\to` ``group_Q``, ``group_e``, etc.
+
+This means the same top-level ``compute_rate_coeff()`` and ``get_source()``
+routines work for all model types. The runtime selection happens at
+initialization, not in the inner loop.
+
+
+Runtime Model Selection
+------------------------
+
+The model is determined entirely by the database files:
+
+1. **Mixture file** (``database/mixture/``) — lists the species (chemical or
+   pseudo-species)
+2. **Species data files** (``database/thermo/``) — contain the MODEL flag per
+   species
+3. **Transfer file** (``database/transfer/``) — specifies number of
+   temperatures
+
+No explicit code branching for MT vs. StS is needed. Which ``nb_*`` counters
+are nonzero (e.g., ``nb_vib_modes > 0``) determines which reaction loops
+execute.
+
+.. warning::
+
+   A known issue exists in the StS equilibrium composition solver: the
+   Newton--Raphson system for LTE composition can become ill-conditioned when
+   thousands of StS pseudo-species are present, because many levels have
+   negligible populations. This is documented and under investigation.
+
+
+Collisional-Radiative Coupling
+==============================
+
+The radiation module (``src/radiation/``) provides:
+
+- **Bound-bound** (BB): line emission and absorption with Voigt profiles
+- **Bound-free** (BF): photoionization with Kramers cross-sections
+- **Free-free** (FF): Bremsstrahlung
+
+These radiative processes enter the kinetics as additional source terms
+(reaction types 12, 15, 16 in :ref:`kinetics_reactions`). The coupling is
+one-way in the current implementation: radiation affects populations but
+populations do not modify the radiation field (optically thin assumption for
+kinetics; the full radiation transport is handled by external solvers like
+MURP).
+
+
+.. rubric:: References
+
+.. [Park1989] C. Park, "Nonequilibrium Hypersonic Aerothermodynamics,"
+   Wiley, 1989.
+
+.. [Munafo_thesis] A. Munafò, "Multi-Scale Models and Computational Methods
+   for Aerothermodynamics," PhD Thesis, Ecole Centrale Paris, 2014.

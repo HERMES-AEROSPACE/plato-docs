@@ -1,0 +1,143 @@
+.. _ex07_thermo:
+
+=====================================
+Example 7: Thermodynamic Potentials
+=====================================
+
+Physical Context
+================
+
+This example demonstrates the computation of mixture-level thermodynamic
+potentials for the 11-species air mixture
+(N\ :sub:`2`, O\ :sub:`2`, NO, N, O, N\ :sup:`+`, O\ :sup:`+`,
+NO\ :sup:`+`, N\ :sub:`2`\ :sup:`+`, O\ :sub:`2`\ :sup:`+`, e\ :sup:`-`)
+at LTE over 300--15000 K at 1 atm. The equilibrium composition is computed
+at each temperature, so all quantities reflect the changing species
+populations: dissociation of O\ :sub:`2` and N\ :sub:`2` above 2000 K, and
+ionization above 8000 K.
+
+Four results are presented:
+
+1. **Mixture enthalpy** decomposed by energy mode (translational, rotational,
+   vibrational, electronic, formation)
+2. **Mixture entropy** including the entropy-of-mixing term
+3. **Species contributions to mixture Gibbs free energy**:
+   :math:`y_i(T) \cdot g_i(T)` for each species, showing how the dominant
+   contributor shifts from molecular to atomic to ionic species
+4. **Thermodynamic identity verification**: the fundamental relation
+   :math:`g_i = h_i - T s_i` is satisfied to machine precision
+   (:math:`\sim 10^{-15}`) for every species across the entire temperature range
+
+
+Running the Example
+===================
+
+.. code-block:: bash
+
+   # Generate data with plato_equil (partition function path)
+   plato_equil -T 300:100:15000 \
+       -m 1,13,24,26,27,28,29,30,31 -s 2,5,8,9 \
+       --scientific 15 --db-path $DATABASE air11 \
+       > air11_thermo_potentials.dat
+
+   # Generate plots
+   python doc/sphinx/examples/scripts/plot_ex07.py air11_thermo_potentials.dat
+
+The ``-m`` flags select mixture-level quantities:
+
+.. list-table::
+   :widths: 10 30
+   :header-rows: 0
+
+   * - 1
+     - Temperature [K]
+   * - 13
+     - Total mixture enthalpy [J/kg]
+   * - 24--29
+     - Mode-decomposed enthalpy (tr, int, rot, vib, el, formation)
+   * - 30
+     - Mixture entropy with mixing term [J/(kg K)]
+   * - 31
+     - Mixture Gibbs free energy [J/kg]
+
+The ``-s`` flags select per-species quantities: mass fractions (2),
+enthalpies (5), entropies (8), and Gibbs free energies (9).
+
+
+Results
+=======
+
+.. figure:: figures/ex07_thermo_potentials.png
+   :width: 95%
+   :align: center
+
+   Air-11 thermodynamic potentials at 1 atm. **(a)** Mixture enthalpy
+   decomposed by energy mode: formation enthalpy dominates above 5000 K as
+   dissociation and ionization absorb energy; electronic enthalpy rises at
+   high temperature as atoms populate excited electronic states.
+   **(b)** Mixture entropy increases with temperature; the steps near
+   4000--8000 K and above 10000 K reflect the entropy gains from dissociation
+   and ionization respectively (more species, more accessible microstates).
+   **(c)** Species contributions :math:`y_i g_i` to the mixture Gibbs free
+   energy: at low temperature N\ :sub:`2` and O\ :sub:`2` dominate, while
+   atomic N and O contribute at high temperature; ionic species (dashed)
+   become visible above 10000 K. **(d)** The per-species thermodynamic
+   identity :math:`g_i = h_i - T s_i` is verified to :math:`\sim 10^{-15}`
+   relative error for all species.
+
+
+.. figure:: figures/ex07_identity_residual.png
+   :width: 70%
+   :align: center
+
+   Relative residual of the thermodynamic identity :math:`g_i = h_i - T s_i`
+   for representative species in the 11-species air mixture. The residual is
+   at machine precision (:math:`10^{-15}` to :math:`10^{-16}`) across the
+   full temperature range, confirming internal consistency of enthalpy,
+   entropy, and Gibbs free energy for both neutral and ionic species.
+
+
+Physical Interpretation
+=======================
+
+The temperature dependence of thermodynamic potentials reflects the physics
+of energy storage and disorder at LTE:
+
+- **Enthalpy** :math:`h(T)` increases monotonically. Below 4000 K the
+  translational and rotational modes dominate; above 5000 K formation
+  enthalpy (from dissociation) becomes the largest contribution. The
+  electronic contribution grows above 8000 K as atoms populate excited
+  electronic levels and ionization begins.
+
+- **Entropy** :math:`s(T)` increases with temperature. Two steps are visible:
+  the first near 4000--8000 K from O\ :sub:`2` and N\ :sub:`2` dissociation,
+  and the second above 10000 K from ionization. Each step reflects the large
+  entropy gain when the number of independent particles increases.
+
+- **Gibbs free energy** :math:`g(T) = h - Ts` decreases with temperature
+  because the :math:`-Ts` term eventually dominates. The species contributions
+  :math:`y_i g_i` show how the mixture transitions from molecular
+  (N\ :sub:`2`, O\ :sub:`2`) to atomic (N, O) to ionic (N\ :sup:`+`,
+  O\ :sup:`+`, e\ :sup:`-`) character with increasing temperature.
+
+- The **thermodynamic identity** :math:`g_i = h_i - T s_i` is satisfied to
+  machine precision for all 11 species, verifying the internal consistency of
+  PLATO's thermodynamic data across the molecular, atomic, and ionic regimes.
+
+
+Comparison of Thermodynamic Paths
+=================================
+
+PLATO supports two thermodynamic paths:
+
+- **Partition functions** (default): reference at 0 K, formation energies
+  from spectroscopic data.
+- **NASA 9-coefficient polynomials** (``-DPLATO_ENABLE_NASA_POLY=ON``):
+  reference at 298.15 K, coefficients from NIST/NASA thermochemical tables.
+
+Both paths satisfy :math:`g = h - Ts` to machine precision independently.
+Absolute values of :math:`h`, :math:`s`, :math:`g` differ between paths due
+to the reference state convention, but relative quantities (equilibrium
+constants, specific heats, entropy differences) agree closely.
+
+The plot is generated by ``scripts/plot_ex07.py``.

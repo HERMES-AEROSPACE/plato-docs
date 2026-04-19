@@ -1,0 +1,973 @@
+.. _theory_thermo:
+
+=============================
+Thermodynamic Properties
+=============================
+
+This chapter describes how PLATO computes per-species and mixture
+thermodynamic properties from statistical mechanics (the default path) and
+from NASA 9-coefficient polynomials (the optional path). The implementation
+resides in ``src/thermo/`` (~28 source files).
+
+The presentation follows [Munafo_thesis]_ (Chapter 1) for the partition
+function framework, [Magin_thesis]_ (Chapter 2) for entropy and Gibbs free
+energy, and [MunafoPanesi2025]_ for the overall formulation.
+
+
+Statistical Mechanics Foundation
+================================
+
+The central idea of statistical thermodynamics is that **macroscopic
+properties emerge from the partition function** :math:`Q`, which counts
+the number of accessible microstates weighted by their Boltzmann probability.
+Once :math:`Q` is known, all thermodynamic quantities follow by differentiation.
+
+For an ideal gas, the energy modes are assumed to be **separable**:
+translational motion is classical (continuous), while internal modes
+(rotation, vibration, electronic excitation) are quantized. This allows the
+total partition function to factorize, and each factor can be evaluated at
+the temperature governing that mode.
+
+.. figure:: figures/energy_levels_partition.png
+   :width: 100%
+   :align: center
+
+   Left: Energy level structure of a diatomic molecule showing the separation
+   of scales between electronic (:math:`\sim 10^4` K), vibrational
+   (:math:`\sim 10^3` K), rotational (:math:`\sim 1` K), and translational
+   (continuous) modes. Center: The corresponding partition function
+   factorization. Right: How all thermodynamic properties derive from
+   :math:`Q` by differentiation.
+
+
+.. _thermo_partition:
+
+Partition Functions
+===================
+
+The internal partition function of species *i* factorizes under the assumption
+of separable energy modes [Munafo_thesis]_ (Eq. 1.35):
+
+.. math::
+   :label: eq_Q_total
+
+   Q_i^{\mathrm{int}} = Q_i^{\mathrm{rot}} \; Q_i^{\mathrm{vib}} \;
+   Q_i^{\mathrm{el}}
+
+The translational partition function :math:`Q_i^{\mathrm{tra}}` is treated
+separately because it depends on the thermodynamic state (pressure or
+density), while the internal partition function depends only on temperature.
+
+.. note::
+
+   PLATO uses the symbol :math:`Q` for partition functions (variable name
+   ``Q`` in the source code). The Munafò thesis [Munafo_thesis]_ uses
+   :math:`Z`, but the notation is otherwise identical.
+
+
+Translational Partition Function
+--------------------------------
+
+For a 3D ideal gas of species *i* at temperature *T* and pressure *p*
+[Munafo_thesis]_ (Eq. 1.35):
+
+.. math::
+   :label: eq_Q_tra
+
+   Q_i^{\mathrm{tra}}(T) = \left(\frac{2 \pi m_i k_{\mathrm{B}} T}{h^2}
+   \right)^{3/2}
+
+This is the partition function **per unit volume**. The factor
+:math:`k_{\mathrm{B}} T / p` converts to a per-particle partition function at
+pressure *p* when needed (e.g., in the Sackur--Tetrode equation and the
+equilibrium constant).
+
+The translational partition function carries the **mass dependence**: heavier
+species have more translational states available at a given temperature
+(larger :math:`Q^{\mathrm{tra}}`), because heavier particles have smaller
+de Broglie wavelengths :math:`\Lambda_i = h / \sqrt{2 \pi m_i k_{\mathrm{B}} T}`.
+
+Free electrons are treated identically but evaluated at :math:`T_e` rather
+than :math:`T_h`, with mass :math:`m_e`.
+
+
+Rotational Partition Function (Rigid Rotor)
+-------------------------------------------
+
+For a **linear molecule** (atomicity > 1, single moment of inertia *I*),
+in the high-temperature limit where :math:`T \gg \theta_{\mathrm{rot}}`
+[Munafo_thesis]_ (Eq. 3.53):
+
+.. math::
+   :label: eq_Q_rot_lin
+
+   Q_i^{\mathrm{rot}}(T) = \frac{T}{\sigma_i \, \theta_{\mathrm{rot},i}}
+
+where:
+
+- :math:`\theta_{\mathrm{rot},i} = h^2 / (8 \pi^2 I_i k_{\mathrm{B}})` is
+  the characteristic rotational temperature (typically ~2 K for diatomics,
+  so the high-*T* limit is always valid in hypersonic flows)
+- :math:`\sigma_i` is the symmetry number (2 for homonuclear molecules like
+  N\ :sub:`2`, O\ :sub:`2`; 1 for heteronuclear molecules like NO)
+
+For a **nonlinear molecule** with three principal moments of inertia:
+
+.. math::
+   :label: eq_Q_rot_nonlin
+
+   Q_i^{\mathrm{rot}}(T) = \frac{\sqrt{\pi}}{\sigma_i}
+   \left( \frac{T^3}{\theta_{\mathrm{rot},a} \,
+   \theta_{\mathrm{rot},b} \, \theta_{\mathrm{rot},c}} \right)^{1/2}
+
+**Atoms** (atomicity = 1) have no rotational degrees of freedom:
+:math:`Q^{\mathrm{rot}} = 1`.
+
+Source: ``src/thermo/thermo_utils.F90``, lines 55--76.
+
+
+Vibrational Partition Function (Harmonic Oscillator)
+----------------------------------------------------
+
+For a molecule with :math:`n_{\mathrm{vib}}` vibrational modes, each
+modeled as an independent quantum harmonic oscillator:
+
+.. math::
+   :label: eq_Q_vib
+
+   Q_i^{\mathrm{vib}}(T) = \prod_{j=1}^{n_{\mathrm{vib}}}
+   \frac{1}{1 - \exp(-\theta_{\mathrm{vib},j} / T)}
+
+where :math:`\theta_{\mathrm{vib},j}` is the characteristic vibrational
+temperature of mode *j* (e.g., :math:`\theta_{\mathrm{vib}} = 3393` K for
+N\ :sub:`2`, :math:`\theta_{\mathrm{vib}} = 2273` K for O\ :sub:`2`).
+
+The energy zero is at the ground vibrational state (:math:`v = 0`). The
+vibrational partition function approaches 1 as :math:`T \to 0` (only the
+ground state is populated) and grows linearly as :math:`T / \theta_{\mathrm{vib}}`
+at high temperatures (classical limit).
+
+Source: ``src/thermo/thermo_utils.F90``, lines 118--129.
+
+
+Electronic Partition Function (Boltzmann)
+-----------------------------------------
+
+The electronic partition function is a direct sum over discrete energy levels:
+
+.. math::
+   :label: eq_Q_el
+
+   Q_i^{\mathrm{el}}(T) = \sum_{k=1}^{N_{\mathrm{el}}}
+   g_k \exp\!\left(-\frac{\varepsilon_k}{T}\right)
+
+where :math:`g_k` is the degeneracy and :math:`\varepsilon_k` is the energy
+of the *k*-th electronic level, expressed in Kelvin
+(:math:`\varepsilon_k = E_k / k_{\mathrm{B}}`). Level data (energies and
+degeneracies) are read from the species files in ``database/thermo/``.
+
+At low temperatures, only the ground state contributes:
+:math:`Q^{\mathrm{el}} \approx g_1`. At high temperatures, excited states
+become populated and :math:`Q^{\mathrm{el}}` increases.
+
+.. warning::
+
+   The electronic partition function formally diverges for atoms because the
+   number of bound states is infinite. In practice, PLATO truncates the
+   sum at a finite number of levels from the database. When Debye--Hückel
+   corrections are active (see :ref:`equil_debye`), the truncation is
+   determined by Griem's criterion based on the local plasma conditions.
+
+For **state-to-state** (StS) pseudo-species, each level is treated as an
+independent species with :math:`Q^{\mathrm{el}} = g_k` (just the
+degeneracy) and zero internal energy above its own reference.
+
+Source: ``src/thermo/thermo_utils.F90``, lines 155--175.
+
+
+.. _thermo_model_dispatch:
+
+Model Dispatch Mechanism
+========================
+
+PLATO uses a **MODEL** parameter (set per species in the database files) to
+select which partition function and thermodynamic routines are called at
+runtime. This is implemented via **procedure pointer arrays** assigned during
+initialization in ``src/thermo/thermo_initialize.F90`` (lines 1320--1427):
+
+.. list-table::
+   :widths: 18 50 14
+   :header-rows: 1
+
+   * - MODEL
+     - Description
+     - Target
+   * - ``RR_HO_EL``
+     - Rigid rotor + harmonic oscillator + electronic (default)
+     - Molecules
+   * - ``EL``
+     - Electronic Boltzmann only
+     - Atoms
+   * - ``RR``
+     - Rigid rotor only
+     - Special
+   * - ``HO``
+     - Harmonic oscillator only
+     - Special
+   * - ``RR_HO``
+     - Rigid rotor + harmonic oscillator (no electronic)
+     - Molecules
+   * - ``NONE`` / ``STS``
+     - State-to-state (:math:`Q = g`, :math:`e^{\mathrm{int}} = 0`)
+     - Any
+   * - ``GROUP`` / ``RR_GROUP``
+     - Coarse-grained (table interpolation)
+     - Molecules
+
+For example, the pointer assignment for the ``RR_HO_EL`` model assigns:
+
+- Partition function: ``rr_ho_el_Q``
+- Energy: ``rr_ho_el_e``
+- Entropy: ``rr_ho_el_s``
+- Gibbs: ``rr_ho_el_g``
+
+This polymorphic dispatch avoids runtime branching in inner loops: the
+function pointer is resolved once at initialization, and all subsequent calls
+go directly to the correct implementation.
+
+
+.. _thermo_derivation:
+
+From Partition Functions to Thermodynamic Properties
+====================================================
+
+This section shows how all thermodynamic properties are **derived** from the
+partition function. This is the fundamental connection between microscopic
+(quantum) and macroscopic (continuum) descriptions.
+
+The key relation is [Munafo_thesis]_ (Eqs. 1.42--1.43):
+
+.. math::
+   :label: eq_e_from_Q
+
+   e_i^{\mathrm{mode}}(T) = \frac{k_{\mathrm{B}} T^2}{m_i}
+   \frac{\partial \ln Q_i^{\mathrm{mode}}}{\partial T}
+
+This formula states that the specific energy of any mode equals
+:math:`k_{\mathrm{B}} T^2 / m_i` times the logarithmic temperature derivative
+of the corresponding partition function. It is the bridge between statistical
+mechanics and thermodynamics.
+
+**Derivation sketch.** Consider a canonical ensemble of :math:`N_i` particles
+of species *i* in volume *V*. The Helmholtz free energy is
+:math:`F = -N_i k_{\mathrm{B}} T \ln Q_i`. The internal energy is
+:math:`U = -\partial \ln Q_i / \partial (1/(k_{\mathrm{B}} T))
+= k_{\mathrm{B}} T^2 \, \partial \ln Q_i / \partial T`. Dividing by mass
+:math:`N_i m_i` gives the specific energy :eq:`eq_e_from_Q`.
+
+Similarly, the specific heat follows by differentiation:
+
+.. math::
+   :label: eq_cv_from_Q
+
+   c_{v,i}^{\mathrm{mode}} = \frac{\partial e_i^{\mathrm{mode}}}{\partial T}
+
+The entropy per unit mass of a mode is:
+
+.. math::
+   :label: eq_s_from_Q
+
+   s_i^{\mathrm{mode}} = \frac{e_i^{\mathrm{mode}}}{T}
+   + \frac{k_{\mathrm{B}}}{m_i} \ln Q_i^{\mathrm{mode}}
+
+And the Gibbs free energy per unit mass:
+
+.. math::
+   :label: eq_g_from_Q
+
+   g_i^{\mathrm{mode}} = -\frac{k_{\mathrm{B}} T}{m_i}
+   \ln Q_i^{\mathrm{mode}}
+
+(plus the :math:`pV = R_i T` term for translation).
+
+.. note::
+
+   In the source code (``src/thermo/thermo_utils.F90``), the electronic
+   energy is computed **directly** from the Boltzmann-weighted sum
+   :math:`e = \sum_k \varepsilon_k g_k \exp(-\varepsilon_k/T) / Q`
+   rather than via the logarithmic derivative :eq:`eq_e_from_Q`. Both
+   approaches are mathematically equivalent; the direct sum is numerically
+   more convenient when the level energies are tabulated.
+
+
+.. _thermo_energy:
+
+Internal Energy
+===============
+
+Applying :eq:`eq_e_from_Q` to each partition function, the total specific
+internal energy of species *i* decomposes as [Munafo_thesis]_ (Eqs.
+1.42--1.44):
+
+.. math::
+   :label: eq_energy_total
+
+   e_i = e_i^{\mathrm{tra}} + e_i^{\mathrm{rot}} + e_i^{\mathrm{vib}}
+   + e_i^{\mathrm{el}} + e_{f,i}
+
+where :math:`e_{f,i}` is the formation energy at 0 K (see
+:ref:`thermo_formation`).
+
+
+Translational Energy
+--------------------
+
+From :math:`\ln Q^{\mathrm{tra}} = \tfrac{3}{2} \ln T + \mathrm{const}`, we
+get :math:`\partial \ln Q^{\mathrm{tra}} / \partial T = 3/(2T)`, so:
+
+.. math::
+   :label: eq_e_tra
+
+   e_i^{\mathrm{tra}} = \frac{k_{\mathrm{B}} T^2}{m_i} \cdot \frac{3}{2T}
+   = \frac{3}{2} \frac{k_{\mathrm{B}}}{m_i} T = \frac{3}{2} R_i \, T_h
+
+This is the classical equipartition result: :math:`\tfrac{1}{2} k_{\mathrm{B}} T`
+per translational degree of freedom, three degrees per particle.
+
+For free electrons:
+
+.. math::
+   :label: eq_e_tra_e
+
+   e_e^{\mathrm{tra}} = \frac{3}{2} \frac{k_{\mathrm{B}}}{m_e} T_e
+
+
+Rotational Energy
+-----------------
+
+From :math:`\ln Q^{\mathrm{rot}} = \ln T - \ln(\sigma \theta_{\mathrm{rot}})`
+for a linear molecule, :math:`\partial \ln Q^{\mathrm{rot}} / \partial T = 1/T`:
+
+.. math::
+   :label: th_eq_e_rot
+
+   e_i^{\mathrm{rot}} = R_i \, T_r \qquad \text{(linear molecule)}
+
+For a nonlinear molecule (:math:`\ln Q^{\mathrm{rot}} \propto \tfrac{3}{2} \ln T`):
+
+.. math::
+   :label: th_eq_e_rot_nonlin
+
+   e_i^{\mathrm{rot}} = \frac{3}{2} R_i \, T_r \qquad \text{(nonlinear molecule)}
+
+In the standard two-temperature model, :math:`T_r = T_h` (rotation
+equilibrates with translation on fast timescales).
+
+
+Vibrational Energy
+------------------
+
+From the harmonic oscillator partition function :eq:`eq_Q_vib`:
+
+.. math::
+   :label: th_eq_e_vib
+
+   e_i^{\mathrm{vib}} = R_i \sum_{j=1}^{n_{\mathrm{vib}}}
+   \frac{\theta_{\mathrm{vib},j}}{\exp(\theta_{\mathrm{vib},j} / T_v) - 1}
+
+This is the **Planck distribution** for each vibrational mode. At low
+temperature (:math:`T_v \ll \theta_{\mathrm{vib}}`), the mode is "frozen"
+with exponentially small energy. At high temperature
+(:math:`T_v \gg \theta_{\mathrm{vib}}`), the energy approaches the classical
+limit :math:`R_i T_v` per mode.
+
+
+Electronic Energy
+-----------------
+
+The mean electronic energy from the Boltzmann distribution:
+
+.. math::
+   :label: eq_e_el
+
+   e_i^{\mathrm{el}} = \frac{k_{\mathrm{B}}}{m_i}
+   \frac{\sum_{k=1}^{N_{\mathrm{el}}} \varepsilon_k \, g_k
+   \exp(-\varepsilon_k / T_e)}{Q_i^{\mathrm{el}}(T_e)}
+
+This is a thermal average: each level's energy is weighted by its Boltzmann
+population. At low temperatures, only the ground state is populated and
+:math:`e^{\mathrm{el}} \approx 0`. The electronic energy becomes significant
+when :math:`T_e` is comparable to the first excited state energy
+(typically thousands of Kelvin).
+
+Source: ``src/thermo/thermo_prop_energy.F90``,
+``src/thermo/thermo_utils.F90``.
+
+
+Energy Densities
+----------------
+
+The conserved energy densities used in the governing equations are:
+
+.. math::
+   :label: eq_rhoe_h
+
+   \rho e_h = \sum_{i \neq e} \rho_i
+   \left[ \frac{3}{2} R_i T_h + e_i^{\mathrm{int}} + e_{f,i} \right]
+
+.. math::
+   :label: eq_rhoe_e
+
+   \rho e_e = \rho_e \frac{3}{2} \frac{k_{\mathrm{B}}}{m_e} T_e
+
+where the sum in :eq:`eq_rhoe_h` runs over heavy particles only and
+:math:`e_i^{\mathrm{int}} = e_i^{\mathrm{rot}} + e_i^{\mathrm{vib}} + e_i^{\mathrm{el}}`.
+
+
+.. _thermo_enthalpy:
+
+Enthalpy
+========
+
+The specific enthalpy of species *i* includes the :math:`pV` work term.
+For an ideal gas, :math:`pV = n k_{\mathrm{B}} T` per particle, so per unit
+mass [Munafo_thesis]_ (text after Eq. 1.44):
+
+.. math::
+   :label: eq_enthalpy
+
+   h_i = e_i + \frac{k_{\mathrm{B}}}{m_i} T = e_i + R_i \, T
+
+Explicitly, for heavy particles:
+
+.. math::
+   :label: eq_h_heavy
+
+   h_i = \frac{5}{2} R_i \, T_h + e_i^{\mathrm{rot}} + e_i^{\mathrm{vib}}
+   + e_i^{\mathrm{el}} + e_{f,i}
+
+The :math:`5/2` comes from :math:`3/2` (translational :math:`c_v`) plus
+:math:`1` (the :math:`pV` term). This is also called the **translational
+enthalpy**: :math:`h_i^{\mathrm{tra}} = \tfrac{5}{2} R_i T` [Magin_thesis]_
+(Eq. 2.4).
+
+For free electrons:
+
+.. math::
+   :label: eq_h_electron
+
+   h_e = \frac{5}{2} \frac{k_{\mathrm{B}}}{m_e} T_e
+
+Source: ``src/thermo/thermo_prop_enthalpy.F90``.
+
+
+.. _thermo_cv_cp:
+
+Specific Heats
+==============
+
+The specific heat at constant volume is the temperature derivative of the
+energy [Munafo_thesis]_ (Eq. 1.45):
+
+.. math::
+
+   c_{v,i} = \frac{\partial e_i}{\partial T}
+
+and the specific heat at constant pressure (for an ideal gas):
+
+.. math::
+
+   c_{p,i} = c_{v,i} + R_i
+
+Note that the internal modes contribute equally to :math:`c_v` and :math:`c_p`
+because they involve no :math:`pV` work: :math:`c_{p,i}^{\mathrm{int}} = c_{v,i}^{\mathrm{int}}`
+[Munafo_thesis]_ (Eq. 1.47).
+
+
+Specific Heat at Constant Volume
+---------------------------------
+
+**Translational** (equipartition, exact):
+
+.. math::
+
+   c_{v,i}^{\mathrm{tra}} = \frac{3}{2} R_i
+
+**Rotational** (rigid-rotor, fully excited):
+
+.. math::
+
+   c_{v,i}^{\mathrm{rot}} = \begin{cases}
+   R_i & \text{linear molecule} \\[4pt]
+   \tfrac{3}{2} R_i & \text{nonlinear molecule}
+   \end{cases}
+
+**Vibrational** (harmonic oscillator):
+
+.. math::
+   :label: eq_cv_vib
+
+   c_{v,i}^{\mathrm{vib}} = R_i \sum_{j=1}^{n_{\mathrm{vib}}}
+   \frac{(\theta_{\mathrm{vib},j}/T)^2 \exp(\theta_{\mathrm{vib},j}/T)}
+   {[\exp(\theta_{\mathrm{vib},j}/T) - 1]^2}
+
+This is the **Einstein function**: it vanishes exponentially as
+:math:`T \to 0` and approaches :math:`R_i` per mode as
+:math:`T \to \infty`.
+
+**Electronic** (Boltzmann, variance of the energy distribution):
+
+.. math::
+   :label: eq_cv_el
+
+   c_{v,i}^{\mathrm{el}} = \frac{R_i}{T^2}
+   \left[
+   \frac{\sum_k \varepsilon_k^2 g_k e^{-\varepsilon_k/T}}{Q_i^{\mathrm{el}}}
+   - \left(\frac{\sum_k \varepsilon_k g_k e^{-\varepsilon_k/T}}
+   {Q_i^{\mathrm{el}}}\right)^{\!2}
+   \right]
+
+This is :math:`\langle \varepsilon^2 \rangle - \langle \varepsilon \rangle^2`
+divided by :math:`T^2`: the electronic specific heat is proportional to the
+**variance** of the electronic energy distribution. It peaks when
+:math:`T \sim \varepsilon_1` (the first excitation energy) and vanishes
+both at low *T* (one state occupied) and high *T* (all states equally
+populated).
+
+
+Specific Heat at Constant Pressure
+------------------------------------
+
+.. math::
+
+   c_{p,i} = c_{v,i} + R_i
+
+Source: ``src/thermo/thermo_prop_cv.F90``, ``src/thermo/thermo_prop_cp.F90``.
+
+
+.. _thermo_entropy:
+
+Entropy
+=======
+
+The entropy is derived from the partition function via :eq:`eq_s_from_Q`.
+The specific entropy decomposes into modal contributions [Magin_thesis]_
+(Eqs. 2.4--2.7):
+
+.. math::
+   :label: eq_entropy_total
+
+   s_i = s_i^{\mathrm{tra}} + s_i^{\mathrm{rot}} + s_i^{\mathrm{vib}}
+   + s_i^{\mathrm{el}}
+
+
+Translational Entropy (Sackur--Tetrode)
+-----------------------------------------
+
+The translational entropy includes the pressure dependence because the
+translational partition function depends on the available volume per particle.
+From :eq:`eq_s_from_Q` applied to :eq:`eq_Q_tra` [Magin_thesis]_ (Eq. 2.4c):
+
+.. math::
+   :label: eq_sackur_tetrode
+
+   s_i^{\mathrm{tra}} = R_i \left[ \frac{5}{2} + \frac{3}{2}
+   \ln\!\left(\frac{2\pi m_i k_{\mathrm{B}} T}{h^2}\right)
+   + \ln\!\left(\frac{k_{\mathrm{B}} T}{p}\right) \right]
+
+This is the classical **Sackur--Tetrode equation** expressed per unit mass.
+As expected from the third law of thermodynamics, :math:`s^{\mathrm{tra}} \to -\infty`
+as :math:`T \to 0` (the quantum regime where the classical partition function
+breaks down).
+
+
+Rotational Entropy
+-------------------
+
+For a linear molecule, from :eq:`eq_s_from_Q` applied to :eq:`eq_Q_rot_lin`:
+
+.. math::
+   :label: eq_s_rot_lin
+
+   s_i^{\mathrm{rot}} = R_i \left[ 1 + \ln\!\left(
+   \frac{T}{\sigma_i \, \theta_{\mathrm{rot},i}} \right) \right]
+
+For a nonlinear molecule:
+
+.. math::
+   :label: eq_s_rot_nonlin
+
+   s_i^{\mathrm{rot}} = R_i \left[ \frac{3}{2}
+   + \frac{3}{2} \ln\!\left(\frac{T}{\theta_{\mathrm{rot},i}}\right)
+   - \ln \sigma_i \right]
+
+Source: ``src/thermo/thermo_function.F90``, line 1614.
+
+
+Vibrational Entropy
+--------------------
+
+From :eq:`eq_s_from_Q` applied to :eq:`eq_Q_vib` [Magin_thesis]_ (Eq. 2.7b):
+
+.. math::
+   :label: eq_s_vib
+
+   s_i^{\mathrm{vib}} = R_i \sum_{j=1}^{n_{\mathrm{vib}}}
+   \left[
+   \frac{\theta_{\mathrm{vib},j}/T}{\exp(\theta_{\mathrm{vib},j}/T) - 1}
+   - \ln\!\left(1 - \exp(-\theta_{\mathrm{vib},j}/T)\right)
+   \right]
+
+The first term is :math:`e^{\mathrm{vib}} / (R_i T)` and the second is
+:math:`\ln Q^{\mathrm{vib}}`.
+
+
+Electronic Entropy
+-------------------
+
+.. math::
+   :label: eq_s_el
+
+   s_i^{\mathrm{el}} = R_i \left[
+   \ln Q_i^{\mathrm{el}} +
+   \frac{1}{T_e}
+   \frac{\sum_k \varepsilon_k g_k \exp(-\varepsilon_k/T_e)}
+   {Q_i^{\mathrm{el}}}
+   \right]
+
+This is :eq:`eq_s_from_Q` with the electronic partition function:
+:math:`s = e/T + (k_{\mathrm{B}}/m_i) \ln Q` [Magin_thesis]_ (Eq. 2.5b).
+
+Source: ``src/thermo/thermo_function.F90``, line 1699.
+
+
+Entropy of Mixing
+------------------
+
+The mixture specific entropy includes an ideal-gas mixing term
+[Magin_thesis]_ (p. 35):
+
+.. math::
+   :label: eq_s_mix
+
+   s_{\mathrm{mix}} = \sum_i y_i \, s_i
+   - \sum_i y_i \, R_i \ln X_i
+
+The :math:`-R_i \ln X_i` term is always positive (since :math:`X_i < 1`),
+reflecting the entropy increase upon mixing.
+
+Source: ``src/thermo/thermo_prop_entropy.F90``.
+
+
+.. _thermo_gibbs:
+
+Gibbs Free Energy
+=================
+
+The specific Gibbs free energy is the key quantity for chemical equilibrium
+[Magin_thesis]_ (p. 35):
+
+.. math::
+   :label: eq_gibbs
+
+   g_i = h_i - T \, s_i
+
+From :eq:`eq_g_from_Q`, each modal contribution is
+:math:`g^{\mathrm{mode}} = -R_i T \ln Q^{\mathrm{mode}}` (with the
+translational term including the :math:`pV` contribution).
+
+Translational:
+
+.. math::
+   :label: eq_g_tra
+
+   g_i^{\mathrm{tra}} = R_i T \left[ -\frac{5}{2} \ln T
+   - \ln\!\left(\frac{(2\pi m_i k_{\mathrm{B}})^{3/2}}{h^3}\right)
+   - \ln k_{\mathrm{B}} + \ln p \right]
+
+Rotational (linear molecule):
+
+.. math::
+
+   g_i^{\mathrm{rot}} = -R_i T \ln\!\left(
+   \frac{T}{\sigma_i \, \theta_{\mathrm{rot},i}} \right)
+
+Vibrational:
+
+.. math::
+
+   g_i^{\mathrm{vib}} = R_i T \sum_{j=1}^{n_{\mathrm{vib}}}
+   \ln\!\left(1 - \exp(-\theta_{\mathrm{vib},j}/T)\right)
+
+Electronic:
+
+.. math::
+
+   g_i^{\mathrm{el}} = -R_i T \ln Q_i^{\mathrm{el}}
+
+The Gibbs free energy is central to chemical equilibrium because **a
+reaction proceeds spontaneously in the direction that decreases the total
+Gibbs energy**. At equilibrium, :math:`\sum_i \nu_i g_i = 0` (the law of
+mass action; see :ref:`theory_equilibrium`).
+
+Source: ``src/thermo/thermo_prop_gibbs.F90``.
+
+
+.. _thermo_helmholtz:
+
+Helmholtz Free Energy
+=====================
+
+The specific Helmholtz free energy is:
+
+.. math::
+   :label: eq_helmholtz
+
+   f_i = e_i - T \, s_i = g_i - R_i \, T
+
+For free electrons: :math:`f_e = g_e - (k_{\mathrm{B}}/m_e) T_e`.
+
+Source: ``src/thermo/thermo_prop_gibbs.F90``, lines 126--147.
+
+
+.. _thermo_keq:
+
+Equilibrium Constant from Partition Functions
+=============================================
+
+The equilibrium constant connects microscopic (partition function) and
+macroscopic (reaction rate) descriptions. Its derivation from partition
+functions is one of the central results in PLATO.
+
+Consider a generic dissociation reaction:
+
+.. math::
+
+   \mathrm{AB}(i) + \mathrm{M} \rightleftharpoons \mathrm{A} + \mathrm{B} + \mathrm{M}
+
+**Microscopic microreversibility** [Munafo_thesis]_ (Eq. 2.80) relates the
+state-specific forward and backward rate coefficients through the principle
+of detailed balance. At equilibrium, the forward and backward rates must be
+equal for every microscopic channel:
+
+.. math::
+   :label: eq_micro_rev
+
+   \frac{k_i^{\mathrm{rec}}(T)}{k_i^{\mathrm{dis}}(T)}
+   = \frac{g_i \, Q_{\mathrm{AB}}^{\mathrm{tra}}(T)}
+   {\left[g_{\mathrm{A}} \, Q_{\mathrm{A}}^{\mathrm{tra}}(T)\right]
+   \left[g_{\mathrm{B}} \, Q_{\mathrm{B}}^{\mathrm{tra}}(T)\right]}
+   \exp\!\left(\frac{E_{\mathrm{A}} + E_{\mathrm{B}} - E_i}{k_{\mathrm{B}} T}\right)
+
+where :math:`g_i` is the degeneracy of level *i*, :math:`E_i` its energy,
+and :math:`E_{\mathrm{A}}, E_{\mathrm{B}}` are the atomic formation
+energies.
+
+**Macroscopic equilibrium constant.** Summing over all internal levels with
+Boltzmann weights [Munafo_thesis]_ (Eq. 3.48):
+
+.. math::
+   :label: eq_Keq_partition
+
+   K_{\mathrm{eq}}(T) = \frac{Q_{\mathrm{AB}}^{\mathrm{tra}}(T) \;
+   Q_{\mathrm{AB}}^{\mathrm{int}}(T)}
+   {Q_{\mathrm{A}}^{\mathrm{tra}}(T) \; Q_{\mathrm{B}}^{\mathrm{tra}}(T)}
+   \exp\!\left(\frac{E_{\mathrm{A}} + E_{\mathrm{B}}}{k_{\mathrm{B}} T}\right)
+
+This is the **fundamental result**: the equilibrium constant is a ratio of
+partition functions, multiplied by a Boltzmann factor that accounts for the
+energy difference between products and reactants.
+
+For a general reaction :math:`\sum_i \nu_i A_i = 0` (with :math:`\nu_i > 0`
+for products, :math:`\nu_i < 0` for reactants), the implementation computes
+[Munafo_thesis]_ (generalization of Eq. 3.48):
+
+.. math::
+   :label: eq_Keq_general
+
+   \ln K_{\mathrm{eq}} = \sum_c \nu_c \left[
+   \ln Q_c^{\mathrm{tra}} + \ln Q_c^{\mathrm{int}}
+   + \ln m_c - \frac{e_{f,c}}{R_c \, T}
+   \right]
+   + \Delta\nu \ln\!\left(\frac{k_{\mathrm{B}} T}{p}\right)
+
+where :math:`\Delta\nu = \sum_c \nu_c` accounts for the change in number
+of moles.
+
+**Alternative: Gibbs free energy path.** When NASA polynomials are enabled,
+the equilibrium constant is computed from the Gibbs free energy
+[Magin_thesis]_ (Eq. 2.3):
+
+.. math::
+   :label: th_eq_Keq_gibbs
+
+   \ln K_{\mathrm{eq}} = -\frac{\Delta G^0(T)}{R_u T}
+   = -\sum_c \nu_c \frac{g_c^0(T)}{R_u T}
+
+Both paths (:eq:`eq_Keq_general` and :eq:`th_eq_Keq_gibbs`) yield the same
+equilibrium constant to the extent that the underlying thermodynamic data
+are consistent.
+
+Source: ``src/thermo/thermo_equilibrium_comp.F90``, lines 504--541;
+``src/thermo/thermo_prop_part_function.F90``.
+
+
+.. _thermo_nasa:
+
+NASA 9-Coefficient Polynomials
+==============================
+
+When the NASA polynomial path is enabled (``-DPLATO_ENABLE_NASA_POLY=ON``
+or ``NASA_POLY_THERMO = T`` in the mixture file), thermodynamic properties
+are computed from piecewise polynomial fits with 2--3 temperature intervals.
+The reference state is :math:`T_{\mathrm{ref}} = 298.15` K,
+:math:`p_{\mathrm{ref}} = 10^5` Pa (1 bar).
+
+**Specific heat** (per mole):
+
+.. math::
+   :label: eq_nasa_cp
+
+   \frac{c_p}{R_u} = \frac{a_1}{T^2} + \frac{a_2}{T} + a_3
+   + a_4 T + a_5 T^2 + a_6 T^3 + a_7 T^4
+
+**Enthalpy** (per mole):
+
+.. math::
+   :label: eq_nasa_h
+
+   \frac{h}{R_u T} = -\frac{a_1}{T^2} + \frac{a_2 \ln T}{T} + a_3
+   + \frac{a_4}{2} T + \frac{a_5}{3} T^2 + \frac{a_6}{4} T^3
+   + \frac{a_7}{5} T^4 + \frac{b_1}{T}
+
+**Entropy** (per mole, at :math:`p = p_{\mathrm{ref}}`):
+
+.. math::
+   :label: eq_nasa_s
+
+   \frac{s}{R_u} = -\frac{a_1}{2T^2} - \frac{a_2}{T} + a_3 \ln T
+   + a_4 T + \frac{a_5}{2} T^2 + \frac{a_6}{3} T^3
+   + \frac{a_7}{4} T^4 + b_2
+
+At arbitrary pressure:
+
+.. math::
+
+   s(T, p) = s(T, p_{\mathrm{ref}}) - R_u \ln\!\left(\frac{p}{p_{\mathrm{ref}}}\right)
+
+**Gibbs free energy** (per mole):
+
+.. math::
+   :label: eq_nasa_g
+
+   \frac{g}{R_u T} = -\frac{a_1}{2T^2} - a_2 \frac{\ln T}{T}
+   + a_3 (1 - \ln T)
+   - \frac{a_4}{2} T - \frac{a_5}{6} T^2 - \frac{a_6}{12} T^3
+   - \frac{a_7}{20} T^4 + \frac{b_1}{T} - b_2
+   + \ln\!\left(\frac{p}{p_{\mathrm{ref}}}\right)
+
+.. note::
+
+   Per-mass quantities are obtained by dividing by the molar mass :math:`M_i`.
+   The thermodynamic identity :math:`g = h - T s` is satisfied to machine
+   precision (~\ :math:`10^{-13}`) for both the NASA and partition-function
+   paths; see :ref:`ex07_thermo`.
+
+Source: ``src/thermo/nasa_thermo_prop_species_mole.F90``.
+
+
+.. _thermo_multitemp:
+
+Multi-Temperature Framework
+============================
+
+PLATO supports up to :math:`n_T` temperatures, each governing a different
+energy mode. The physical justification is that **different energy modes
+relax on different timescales**: translation equilibrates in a few collisions,
+rotation in tens of collisions, vibration in thousands to millions, and
+electronic excitation can be even slower.
+
+.. list-table::
+   :widths: 15 25 40
+   :header-rows: 1
+
+   * - Temperature
+     - Modes
+     - Species Types
+   * - :math:`T_h`
+     - Heavy-particle translation + rotation
+     - All heavy species
+   * - :math:`T_e`
+     - Free-electron translation + electronic excitation
+     - Electrons, atoms (electronic)
+   * - :math:`T_v`
+     - Vibration
+     - Molecules
+   * - :math:`T_r`
+     - Rotation (if separate from :math:`T_h`)
+     - Molecules
+
+In the standard **two-temperature (2T)** model [Munafo_thesis]_ (Sec. 3.2):
+
+- :math:`T_h` governs translation + rotation of all heavy particles.
+- :math:`T_v = T_e` governs vibration + electronic excitation + electron
+  translation.
+
+In the **single-temperature (LTE)** limit: :math:`T_h = T_v = T_e = T`.
+
+The ``TRANSFER`` database file specifies the number of temperatures and which
+modes couple to which temperature.
+
+
+Species Type Treatment
+-----------------------
+
+- **Free electrons** (atomicity = 0):
+  :math:`c_v = \tfrac{3}{2} k_{\mathrm{B}}/m_e`,
+  all properties evaluated at :math:`T_e`.
+- **Atoms** (atomicity = 1): No rotational or vibrational modes.
+  Translational at :math:`T_h`, electronic at :math:`T_e`.
+- **Molecules** (atomicity > 1): All four mode types.
+  Translational + rotational at :math:`T_h`, vibrational at :math:`T_v`,
+  electronic at :math:`T_e`.
+
+
+.. _thermo_formation:
+
+Formation Enthalpies and Reference States
+------------------------------------------
+
+Species formation energies :math:`e_{f,i}` are defined at 0 K relative to
+the elemental ground states. They enter:
+
+1. The internal energy :eq:`eq_energy_total` as an additive constant
+2. The partition function as a Boltzmann factor:
+   :math:`Q_{\mathrm{form}} = \exp(-e_{f,i} m_i / (k_{\mathrm{B}} T))`
+3. The equilibrium constant :eq:`eq_Keq_general` through the energy
+   difference between products and reactants
+
+For the N\ :sub:`2`--N system [Munafo_thesis]_ (Chapter 3), the dissociation
+energy is :math:`D_0 = 2 E_{\mathrm{N}} - E_{\mathrm{N_2}(v=0,J=0)} = 9.75` eV,
+where :math:`E_{\mathrm{N}}` is the atomic nitrogen formation energy.
+
+The NASA polynomial path uses a reference state of :math:`T = 298.15` K,
+:math:`p = 1` bar. PLATO converts between the two reference conventions
+internally.
+
+
+.. rubric:: References
+
+.. [MunafoPanesi2025] A. Munafò and M. Panesi, "PLATO: a Library for the
+   Thermodynamics, Transport, and Kinetics of Multicomponent Gases and
+   Plasmas," *J. Thermophysics and Heat Transfer*, Vol. 39, No. 4, 2025.
+
+.. [Munafo_thesis] A. Munafò, "Multi-Scale Models and Computational Methods
+   for Aerothermodynamics," PhD Thesis, Ecole Centrale Paris and
+   von Karman Institute for Fluid Dynamics, 2014.
+
+.. [Magin_thesis] T.E. Magin, "A Model for Inductive Plasma Wind Tunnels,"
+   PhD Thesis, Université Libre de Bruxelles and von Karman Institute for
+   Fluid Dynamics, 2004.
+
+.. [Chapman1970] S. Chapman and T.G. Cowling, *The Mathematical Theory of
+   Non-Uniform Gases*, 3rd ed., Cambridge University Press, 1970.

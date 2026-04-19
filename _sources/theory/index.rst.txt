@@ -1,0 +1,114 @@
+.. _theory_guide:
+
+=============
+Theory Guide
+=============
+
+This guide presents the mathematical and physical foundations underlying PLATO.
+Each chapter derives the governing equations from first principles, states the
+assumptions, and points to the source files where the formulas are implemented.
+All notation is consistent across chapters; a summary is provided below.
+
+The material follows the JTHT reference paper [MunafoPanesi2025]_ unless
+otherwise noted:
+
+   Munafò & Panesi, *J. Thermophysics and Heat Transfer*,
+   Vol. 39, No. 4, 2025. DOI: `10.2514/1.T7097 <https://doi.org/10.2514/1.T7097>`_
+
+The two PhD theses that underpin the theoretical framework are cited
+throughout:
+
+- **Munafò thesis** — State-to-state kinetics, coarse-grained models, and the
+  unified multi-scale framework (Chapters 1--3).
+- **Magin thesis** — Two-temperature Chapman--Enskog transport theory,
+  collision integrals, Stefan--Maxwell equations, Eucken correction, LTE
+  thermodynamics including entropy and Gibbs free energy (Chapters 1--4).
+
+
+Notation
+========
+
+All notation follows the JTHT paper. Source code variable names are noted
+in parentheses where helpful.
+
+.. list-table::
+   :widths: 15 60
+   :header-rows: 1
+
+   * - Symbol
+     - Meaning (code variable)
+   * - :math:`k_{\mathrm{B}}`
+     - Boltzmann constant, :math:`1.380649 \times 10^{-23}` J/K (``UKB``)
+   * - :math:`R_u`
+     - Universal gas constant, :math:`8.314462618` J/(mol K) (``URG``)
+   * - :math:`N_A`
+     - Avogadro's number (``UNA``)
+   * - :math:`h`
+     - Planck constant (``UHP``)
+   * - :math:`m_e`
+     - Electron mass (``UME``)
+   * - :math:`e`
+     - Elementary charge (``UQE``)
+   * - :math:`\varepsilon_0`
+     - Vacuum permittivity (``UEPS0``)
+   * - :math:`R_i = R_u / M_i`
+     - Species-specific gas constant (``Ri``)
+   * - :math:`M_i`
+     - Molar mass of species *i*, kg/mol (``mm_comp``)
+   * - :math:`m_i = M_i / N_A`
+     - Molecular mass of species *i*, kg (``mass_comp``)
+   * - :math:`n_i`
+     - Number density of species *i*, m\ :sup:`-3`
+   * - :math:`\rho_i`
+     - Partial mass density, kg/m\ :sup:`3` (``rhoi``)
+   * - :math:`X_i`
+     - Mole fraction (``Xc``, ``Xi``)
+   * - :math:`y_i`
+     - Mass fraction (``yc``, ``yi``)
+   * - :math:`T_h`
+     - Heavy-particle translational temperature, K (``Th``)
+   * - :math:`T_e`
+     - Free-electron temperature, K (``Te``)
+   * - :math:`T_v`
+     - Vibrational temperature, K (``Tv``)
+   * - :math:`T_r`
+     - Rotational temperature, K (``Tr``)
+   * - :math:`p`
+     - Pressure, Pa
+   * - :math:`n_d`
+     - Total number density, m\ :sup:`-3` (``nd``)
+   * - :math:`Q`
+     - Partition function (``Q``; denoted :math:`Z` in the Munafò thesis)
+   * - :math:`\theta_{\mathrm{rot}}`
+     - Characteristic rotational temperature, K (``theta_rot``)
+   * - :math:`\theta_{\mathrm{vib},j}`
+     - Characteristic vibrational temperature of mode *j*, K (``theta_vib``)
+   * - :math:`\sigma`
+     - Molecular symmetry number (``sym``)
+   * - :math:`g_k`
+     - Degeneracy of electronic level *k* (``g_el``)
+   * - :math:`\varepsilon_k`
+     - Energy of electronic level *k*, in K (``E_el``; :math:`= E_k / k_{\mathrm{B}}`)
+   * - :math:`e_{f,i}`
+     - Formation energy at 0 K, J/kg (``Ef_comp``)
+   * - :math:`\bar{Q}^{(\ell,s)}_{ij}`
+     - Reduced collision integral (``Q_11``, ``Q_22``)
+   * - :math:`A^*_{ij}`
+     - Collision integral ratio :math:`\bar{Q}^{(2,2)} / \bar{Q}^{(1,1)}` (``Astar``)
+   * - :math:`D_{ij}`
+     - Binary diffusion coefficient, m\ :sup:`2`/s (``Dij``)
+   * - :math:`\Omega^{(\ell,s)}`
+     - Collision integral of order :math:`(\ell, s)`
+
+
+.. toctree::
+   :maxdepth: 2
+   :numbered:
+   :caption: Chapters
+
+   thermodynamics
+   transport
+   kinetics
+   nonequilibrium
+   equilibrium
+   chemical_derivatives

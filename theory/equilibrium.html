@@ -1,0 +1,1151 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>5. Equilibrium Composition &mdash; PLATO 1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=f2a433a1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script>window.MathJax = {"tex": {"macros": {"RR": "\\mathbb{R}"}}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../about.html" />
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="6. Chemical Derivatives" href="chemical_derivatives.html" />
+    <link rel="prev" title="4. Nonequilibrium Models" href="nonequilibrium.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            PLATO
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting Started</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#prerequisites">Prerequisites</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#required-packages">Required Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#optional-dependencies">Optional Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#building-plato-with-cmake-recommended">Building PLATO with CMake (Recommended)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-1-clone-the-repositories">Step 1: Clone the Repositories</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-2-configure-with-cmake">Step 2: Configure with CMake</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-3-build">Step 3: Build</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-4-install-optional">Step 4: Install (Optional)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-5-build-documentation-optional">Step 5: Build Documentation (Optional)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-6-run-tests">Step 6: Run Tests</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#why-cmake">Why CMake?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#cmake-options-reference">CMake Options Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#building-plato-with-autotools-legacy">Building PLATO with Autotools (Legacy)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#id3">Step 1: Clone the Repositories</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-2-bootstrap">Step 2: Bootstrap</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-3-configure">Step 3: Configure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-4-build">Step 4: Build</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#step-5-install-optional">Step 5: Install (Optional)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#autotools-configure-options">Autotools Configure Options</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#verifying-the-build">Verifying the Build</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#database-setup">Database Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#example-1-air-5-equilibrium-composition">Example 1: Air-5 Equilibrium Composition</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#write-the-program">Write the Program</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#compile-and-run">Compile and Run</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#expected-output">Expected Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#plot-the-results">Plot the Results</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#example-2-air-11-with-ionization">Example 2: Air-11 with Ionization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#id5">Write the Program</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#compile-run-and-plot">Compile, Run, and Plot</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#example-3-box-reactor-simulation">Example 3: BOX Reactor Simulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#prepare-the-input-file">Prepare the Input File</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#run-the-simulation">Run the Simulation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#understand-the-input-parameters">Understand the Input Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#interpret-the-output">Interpret the Output</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#database-path-errors">Database Path Errors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#parallel-build-failure-autotools">Parallel Build Failure (Autotools)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#nasa-polynomial-mismatch">NASA Polynomial Mismatch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#missing-modules-on-clusters">Missing Modules on Clusters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#linker-errors-undefined-symbols">Linker Errors (Undefined Symbols)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../getting_started.html#cvode-not-found-at-runtime">CVODE Not Found at Runtime</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../getting_started.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../user_guide.html">User Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide.html#build-system">Build System</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide.html#database-files">Database Files</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#mixture-files">Mixture Files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#thermodynamic-data-files">Thermodynamic Data Files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#kinetics-mechanism-files">Kinetics Mechanism Files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#transfer-files">Transfer Files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#transport-data-files">Transport Data Files</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide.html#application-codes">Application Codes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#box-isochoric-reactor">BOX – Isochoric Reactor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#shock-post-shock-relaxation">SHOCK – Post-Shock Relaxation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#lagr-lagrangian-flow">LAGR – Lagrangian Flow</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#gsi-gas-surface-interaction">GSI – Gas-Surface Interaction</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide.html#testcases">Testcases</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide.html#common-patterns">Common Patterns</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#initializing-plato-from-external-code">Initializing PLATO from External Code</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#computing-transport-properties">Computing Transport Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../user_guide.html#ode-integration-pattern">ODE Integration Pattern</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../user_guide.html#environment-variables">Environment Variables</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Theory Guide</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Theory Guide</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html#notation">Notation</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="thermodynamics.html">1. Thermodynamic Properties</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#statistical-mechanics-foundation">1.1. Statistical Mechanics Foundation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#partition-functions">1.2. Partition Functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#model-dispatch-mechanism">1.3. Model Dispatch Mechanism</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#from-partition-functions-to-thermodynamic-properties">1.4. From Partition Functions to Thermodynamic Properties</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#internal-energy">1.5. Internal Energy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#enthalpy">1.6. Enthalpy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#specific-heats">1.7. Specific Heats</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#entropy">1.8. Entropy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#gibbs-free-energy">1.9. Gibbs Free Energy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#helmholtz-free-energy">1.10. Helmholtz Free Energy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#equilibrium-constant-from-partition-functions">1.11. Equilibrium Constant from Partition Functions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#nasa-9-coefficient-polynomials">1.12. NASA 9-Coefficient Polynomials</a></li>
+<li class="toctree-l4"><a class="reference internal" href="thermodynamics.html#multi-temperature-framework">1.13. Multi-Temperature Framework</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="transport.html">2. Transport Properties</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="transport.html#the-chapman-enskog-method">2.1. The Chapman–Enskog Method</a></li>
+<li class="toctree-l4"><a class="reference internal" href="transport.html#collision-integrals">2.2. Collision Integrals</a></li>
+<li class="toctree-l4"><a class="reference internal" href="transport.html#binary-diffusion-coefficients">2.3. Binary Diffusion Coefficients</a></li>
+<li class="toctree-l4"><a class="reference internal" href="transport.html#dynamic-viscosity">2.4. Dynamic Viscosity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="transport.html#thermal-conductivity">2.5. Thermal Conductivity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="transport.html#stefan-maxwell-diffusion-equations">2.6. Stefan–Maxwell Diffusion Equations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="transport.html#electrical-conductivity">2.7. Electrical Conductivity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="transport.html#summary-of-transport-linear-systems">2.8. Summary of Transport Linear Systems</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="kinetics.html">3. Chemical Kinetics</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="kinetics.html#rate-coefficients">3.1. Rate Coefficients</a></li>
+<li class="toctree-l4"><a class="reference internal" href="kinetics.html#reaction-process-types">3.2. Reaction Process Types</a></li>
+<li class="toctree-l4"><a class="reference internal" href="kinetics.html#mass-production-rates">3.3. Mass Production Rates</a></li>
+<li class="toctree-l4"><a class="reference internal" href="kinetics.html#energy-exchange-terms">3.4. Energy Exchange Terms</a></li>
+<li class="toctree-l4"><a class="reference internal" href="kinetics.html#analytical-jacobian">3.5. Analytical Jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="kinetics.html#coarse-grained-kinetics">3.6. Coarse-Grained Kinetics</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="nonequilibrium.html">4. Nonequilibrium Models</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="nonequilibrium.html#model-hierarchy">4.1. Model Hierarchy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="nonequilibrium.html#multi-temperature-park-2t-model">4.2. Multi-Temperature (Park 2T) Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="nonequilibrium.html#coarse-grained-cg-model">4.3. Coarse-Grained (CG) Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="nonequilibrium.html#state-to-state-sts-model">4.4. State-to-State (StS) Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="nonequilibrium.html#collisional-radiative-cr-model">4.5. Collisional-Radiative (CR) Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="nonequilibrium.html#polymorphic-dispatch-mechanism">4.6. Polymorphic Dispatch Mechanism</a></li>
+<li class="toctree-l4"><a class="reference internal" href="nonequilibrium.html#collisional-radiative-coupling">4.7. Collisional-Radiative Coupling</a></li>
+</ul>
+</li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">5. Equilibrium Composition</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#problem-formulation">5.1. Problem Formulation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#newton-raphson-solver-in-log-space">5.2. Newton–Raphson Solver in Log-Space</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#debye-huckel-corrections">5.3. Debye–Hückel Corrections</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gibbs-function-continuation-gfc-solver">5.4. Gibbs Function Continuation (GFC) Solver</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#public-api">5.5. Public API</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="chemical_derivatives.html">6. Chemical Derivatives</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="chemical_derivatives.html#problem-formulation">6.1. Problem Formulation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="chemical_derivatives.html#the-shared-jacobian">6.2. The Shared Jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="chemical_derivatives.html#the-four-right-hand-sides">6.3. The Four Right-Hand Sides</a></li>
+<li class="toctree-l4"><a class="reference internal" href="chemical_derivatives.html#gauge-conventions">6.4. Gauge Conventions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="chemical_derivatives.html#domain-of-validity">6.5. Domain of Validity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="chemical_derivatives.html#verification">6.6. Verification</a></li>
+<li class="toctree-l4"><a class="reference internal" href="chemical_derivatives.html#public-api">6.7. Public API</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Examples Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../examples/index.html">Examples Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ex01_air5_equilibrium.html">1. Example 1: Air-5 Equilibrium Composition</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex01_air5_equilibrium.html#physical-context">1.1. Physical Context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex01_air5_equilibrium.html#input-file">1.2. Input File</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex01_air5_equilibrium.html#running-the-example">1.3. Running the Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex01_air5_equilibrium.html#expected-output">1.4. Expected Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex01_air5_equilibrium.html#results-plot">1.5. Results Plot</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex01_air5_equilibrium.html#physical-interpretation">1.6. Physical Interpretation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ex02_air11_equilibrium.html">2. Example 2: Air-11 Equilibrium with Ionization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex02_air11_equilibrium.html#physical-context">2.1. Physical Context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex02_air11_equilibrium.html#input-file">2.2. Input File</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex02_air11_equilibrium.html#running-the-example">2.3. Running the Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex02_air11_equilibrium.html#expected-output">2.4. Expected Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex02_air11_equilibrium.html#results-plot">2.5. Results Plot</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex02_air11_equilibrium.html#comparison-with-air-5">2.6. Comparison with Air-5</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ex03_pressure_effects.html">3. Example 3: Pressure Effects on Equilibrium</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex03_pressure_effects.html#physical-context">3.1. Physical Context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex03_pressure_effects.html#input-files">3.2. Input Files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex03_pressure_effects.html#running-the-example">3.3. Running the Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex03_pressure_effects.html#results-plot">3.4. Results Plot</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex03_pressure_effects.html#physical-interpretation">3.5. Physical Interpretation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ex04_transport.html">4. Example 4: Transport Properties</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex04_transport.html#physical-context">4.1. Physical Context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex04_transport.html#input-file">4.2. Input File</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex04_transport.html#running-the-example">4.3. Running the Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex04_transport.html#expected-output">4.4. Expected Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex04_transport.html#results-plot">4.5. Results Plot</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex04_transport.html#physical-interpretation">4.6. Physical Interpretation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ex05_box_reactor.html">5. Example 5: BOX Reactor – Isothermal Relaxation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex05_box_reactor.html#physical-context">5.1. Physical Context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex05_box_reactor.html#input-file">5.2. Input File</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex05_box_reactor.html#running-the-example">5.3. Running the Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex05_box_reactor.html#expected-output">5.4. Expected Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex05_box_reactor.html#results-plot">5.5. Results Plot</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex05_box_reactor.html#physical-interpretation">5.6. Physical Interpretation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ex06_shock.html">6. Example 6: Normal Shock Relaxation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex06_shock.html#physical-context">6.1. Physical Context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex06_shock.html#input-file">6.2. Input File</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex06_shock.html#running-the-example">6.3. Running the Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex06_shock.html#expected-output">6.4. Expected Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex06_shock.html#results-plot">6.5. Results Plot</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex06_shock.html#physical-interpretation">6.6. Physical Interpretation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ex07_thermo_potentials.html">7. Example 7: Thermodynamic Potentials</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex07_thermo_potentials.html#physical-context">7.1. Physical Context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex07_thermo_potentials.html#running-the-example">7.2. Running the Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex07_thermo_potentials.html#results">7.3. Results</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex07_thermo_potentials.html#physical-interpretation">7.4. Physical Interpretation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex07_thermo_potentials.html#comparison-of-thermodynamic-paths">7.5. Comparison of Thermodynamic Paths</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../examples/ex08_validation.html">8. Example 8: Validation Against the JTHT Reference Paper</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex08_validation.html#equilibrium-composition">8.1. Equilibrium Composition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex08_validation.html#enthalpy-decomposition">8.2. Enthalpy Decomposition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex08_validation.html#interaction-potential">8.3. Interaction Potential</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex08_validation.html#thermal-conductivity">8.4. Thermal Conductivity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex08_validation.html#viscosity">8.5. Viscosity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../examples/ex08_validation.html#reproducing-these-plots">8.6. Reproducing These Plots</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../about.html">About PLATO</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../about.html#what-is-plato">What is PLATO?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../about.html#key-differentiator">Key Differentiator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../about.html#theoretical-foundation">Theoretical Foundation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../about.html#primary-consumers">Primary Consumers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../about.html#team">Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../about.html#code-structure">Code Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../about.html#build-system-and-dependencies">Build System and Dependencies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../about.html#minimum-requirements">Minimum Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../about.html#optional-libraries">Optional Libraries</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../about.html#build-commands">Build Commands</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../about.html#future-directions">Future Directions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../physics.html">Physical Modeling and Theory</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../physics.html#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../physics.html#species-and-temperature-structure">Species and Temperature Structure</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#species-set">Species Set</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#temperature-structure">Temperature Structure</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../physics.html#governing-equations">Governing Equations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#nlte-system">NLTE System</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#lte-system">LTE System</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../physics.html#thermodynamics">Thermodynamics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#equation-of-state">Equation of State</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#energy-content">Energy Content</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#internal-energy-models">Internal Energy Models</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#lte-secondary-properties">LTE Secondary Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#equilibrium-composition">Equilibrium Composition</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../physics.html#transport-properties">Transport Properties</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#viscosity">Viscosity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#heat-flux">Heat Flux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#thermal-conductivity">Thermal Conductivity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#diffusion-velocities-stefan-maxwell">Diffusion Velocities (Stefan–Maxwell)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#thermal-diffusion-ratios">Thermal Diffusion Ratios</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#electrical-conductivity">Electrical Conductivity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#transport-system-summary">Transport System Summary</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../physics.html#collision-integrals">Collision Integrals</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#definition">Definition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#derived-ratios">Derived Ratios</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#binary-diffusion-coefficients">Binary Diffusion Coefficients</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#interaction-models">Interaction Models</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../physics.html#chemical-kinetics">Chemical Kinetics</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#collisional-processes">Collisional Processes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#rate-coefficients">Rate Coefficients</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#microreversibility-and-detailed-balance">Microreversibility and Detailed Balance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#mass-production-terms">Mass Production Terms</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#energy-exchange-terms">Energy Exchange Terms</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#analytical-jacobians">Analytical Jacobians</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../physics.html#lte-formulation">LTE Formulation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#simplified-transport">Simplified Transport</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../physics.html#equilibrium-composition-solver">Equilibrium Composition Solver</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../physics.html#references">References</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../api_reference.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api_reference.html#fortran-api">Fortran API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#initialization-and-finalization">Initialization and Finalization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#scalar-query-routines">Scalar Query Routines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#array-query-routines">Array Query Routines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#composition-and-mixture-utilities">Composition and Mixture Utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#lte-composition">LTE Composition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#nlte-thermodynamic-properties">NLTE Thermodynamic Properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#transport-properties-and-fluxes">Transport Properties and Fluxes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#kinetics-source-terms">Kinetics Source Terms</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#ode-integrator">ODE Integrator</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api_reference.html#c-api">C API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#lifecycle">Lifecycle</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#species-and-mixture-queries">Species and Mixture Queries</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#composition-and-thermodynamics">Composition and Thermodynamics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#transport">Transport</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#kinetics">Kinetics</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#id2">ODE Integrator</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api_reference.html#id3">C++ API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_reference.html#fortran-c-interoperability">Fortran-C Interoperability</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#array-passing">Array Passing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#string-passing">String Passing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_reference.html#scalar-passing">Scalar Passing</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api_reference.html#api-coverage-gap-analysis">API Coverage Gap Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_reference.html#known-issues">Known Issues</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../architecture.html">Architecture Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../architecture.html#module-dependency-map">Module Dependency Map</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture.html#module-details">Module Details</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#driver">1. <code class="docutils literal notranslate"><span class="pre">driver</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#general">2. <code class="docutils literal notranslate"><span class="pre">general</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#interface-interface-c-interface-cpp">3. <code class="docutils literal notranslate"><span class="pre">interface</span></code>, <code class="docutils literal notranslate"><span class="pre">interface_c</span></code>, <code class="docutils literal notranslate"><span class="pre">interface_cpp</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../architecture.html#a-c-c-gsl-bindings-new">3a. <code class="docutils literal notranslate"><span class="pre">c</span></code> – C/GSL Bindings [new]</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#post-process">4. <code class="docutils literal notranslate"><span class="pre">post_process</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#utils">5. <code class="docutils literal notranslate"><span class="pre">utils</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#kinetics">6. <code class="docutils literal notranslate"><span class="pre">kinetics</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../architecture.html#reaction-types-16-gas-phase-process-ids">Reaction Types (16 Gas-Phase Process IDs)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../architecture.html#source-term-pipeline">Source Term Pipeline</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../architecture.html#analytical-jacobian">Analytical Jacobian</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../architecture.html#energy-transfer-mechanisms">Energy Transfer Mechanisms</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#numerics">7. <code class="docutils literal notranslate"><span class="pre">numerics</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#ode-integrator">8. <code class="docutils literal notranslate"><span class="pre">ode_integrator</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#thermo">9. <code class="docutils literal notranslate"><span class="pre">thermo</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#transport">10. <code class="docutils literal notranslate"><span class="pre">transport</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#kinetics-gsi-gas-surface-interaction-new">11. <code class="docutils literal notranslate"><span class="pre">kinetics_gsi</span></code> – Gas-Surface Interaction [new]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#kinetics-lpi-laser-plasma-interaction-new">12. <code class="docutils literal notranslate"><span class="pre">kinetics_lpi</span></code> – Laser-Plasma Interaction [new]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#thermo-gsi-gsi-thermodynamics-new">13. <code class="docutils literal notranslate"><span class="pre">thermo_gsi</span></code> – GSI Thermodynamics [new]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#radiation-radiative-properties-new">14. <code class="docutils literal notranslate"><span class="pre">radiation</span></code> – Radiative Properties [new]</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#proj-rom-projected-reduced-order-models-new">15. <code class="docutils literal notranslate"><span class="pre">proj_rom</span></code> – Projected Reduced-Order Models [new]</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture.html#application-codes">Application Codes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#ode-solver-applications">ODE Solver Applications</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#other-applications">Other Applications</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture.html#database-file-formats">Database File Formats</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#mixture-file">Mixture File</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#thermo-file">Thermo File</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture.html#kinetics-file">Kinetics File</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture.html#test-infrastructure">Test Infrastructure</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../development.html">Development Plan &amp; Roadmap</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../development.html#phase-1-codebase-learning">Phase 1: Codebase Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../development.html#phase-2-development-tasks-priority-order">Phase 2: Development Tasks (Priority Order)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../development.html#p1-test-infrastructure">P1: Test Infrastructure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../development.html#p2-documentation">P2: Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../development.html#p3-ablation-chemistry">P3: Ablation Chemistry</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../development.html#p4-code-quality">P4: Code Quality</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../development.html#p5-performance">P5: Performance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../development.html#p6-new-physics">P6: New Physics</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../development.html#phase-3-workflow-integration">Phase 3: Workflow Integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../development.html#ci-cd-setup">CI/CD Setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../development.html#code-review-process">Code Review Process</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../development.html#fortran-specific-conventions">Fortran-Specific Conventions</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api_fortran.html">Fortran API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#exported-types">Exported Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#initialization-and-finalization">Initialization and Finalization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#runtime-parameter-control">Runtime Parameter Control</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#error-handling">Error Handling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#scalar-query-routines">Scalar Query Routines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#array-query-routines">Array Query Routines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#name-query-routines">Name Query Routines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#species-lookup">Species Lookup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#nonequilibrium-model-queries">Nonequilibrium Model Queries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#composition-utilities">Composition Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#lte-composition">LTE Composition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#lte-thermodynamic-properties">LTE Thermodynamic Properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#post-shock-conditions">Post-Shock Conditions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#nlte-thermodynamic-properties">NLTE Thermodynamic Properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#transport-properties-and-fluxes">Transport Properties and Fluxes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#kinetics-source-terms">Kinetics Source Terms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#laser-plasma-interaction-lpi-kinetics">Laser-Plasma Interaction (LPI) Kinetics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#gas-surface-interaction-gsi-kinetics">Gas-Surface Interaction (GSI) Kinetics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#ode-integrator">ODE Integrator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#post-processing">Post-Processing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#file-i-o-utilities">File I/O Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#memory-management">Memory Management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api_fortran.html#rom-model">ROM Model</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../api_doxygen.html">Auto-Generated C/C++ API (Doxygen)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../api_doxygen.html#c-api">C API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#main-interface-header">Main interface header</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv416plato_initializePKcPKcPKcPKcPKc"><code class="docutils literal notranslate"><span class="pre">plato_initialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv414plato_finalizev"><code class="docutils literal notranslate"><span class="pre">plato_finalize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv414plato_get_nb_ev"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_e()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv415plato_get_nb_atv"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_at()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv416plato_get_nb_molv"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_mol()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv417plato_get_nb_compv"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_comp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv420plato_get_nb_speciesv"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_species()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv423plato_get_nb_at_speciesv"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_at_species()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv424plato_get_nb_mol_speciesv"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_mol_species()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv417plato_get_nb_tempv"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_temp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv422plato_get_nb_post_tempv"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_post_temp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv416plato_get_at_idsPj"><code class="docutils literal notranslate"><span class="pre">plato_get_at_ids()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv417plato_get_mol_idsPj"><code class="docutils literal notranslate"><span class="pre">plato_get_mol_ids()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv412plato_get_RiPd"><code class="docutils literal notranslate"><span class="pre">plato_get_Ri()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv413plato_get_EfiPd"><code class="docutils literal notranslate"><span class="pre">plato_get_Efi()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv412plato_get_miPd"><code class="docutils literal notranslate"><span class="pre">plato_get_mi()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv428plato_mass_to_mole_fractionsPKdPd"><code class="docutils literal notranslate"><span class="pre">plato_mass_to_mole_fractions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv428plato_mole_to_mass_fractionsPKdPd"><code class="docutils literal notranslate"><span class="pre">plato_mole_to_mass_fractions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv429plato_get_eq_composition_molePKdPKdPdPdPKi"><code class="docutils literal notranslate"><span class="pre">plato_get_eq_composition_mole()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv429plato_get_eq_composition_massPKdPKdPdPdPKi"><code class="docutils literal notranslate"><span class="pre">plato_get_eq_composition_mass()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv434plato_get_frozen_gamma_sound_speedPKdPKdPKdPKdPdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_frozen_gamma_sound_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv430plato_get_eq_gamma_sound_speedPKdPKdPKdPdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_eq_gamma_sound_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv420plato_get_nb_densityPKdPKdPKdPKd"><code class="docutils literal notranslate"><span class="pre">plato_get_nb_density()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv417plato_get_densityPKdPKd"><code class="docutils literal notranslate"><span class="pre">plato_get_density()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv426plato_get_energy_densitiesPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_energy_densities()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv416plato_get_sourcePKjPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_source()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv417plato_get_dyn_visPKdPKdPKdPKd"><code class="docutils literal notranslate"><span class="pre">plato_get_dyn_vis()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv427plato_get_species_diff_fluxPKdPKdPKdPKdPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_species_diff_flux()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv420plato_get_output_varPKiPKiPKdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_output_var()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv427plato_post_process_solutionPKcPKiPKiPKiPKdPKdPKi"><code class="docutils literal notranslate"><span class="pre">plato_post_process_solution()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv435plato_pre_initialize_ODE_integratorPKcPKiPKiPKiPKcPKcPKiPKdPKd"><code class="docutils literal notranslate"><span class="pre">plato_pre_initialize_ODE_integrator()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv431plato_initialize_ODE_integratorPKiPKdPKd"><code class="docutils literal notranslate"><span class="pre">plato_initialize_ODE_integrator()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv416plato_evolve_ODEPKiPKiPKiPKiPKdPdPdPKd"><code class="docutils literal notranslate"><span class="pre">plato_evolve_ODE()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#constants">Constants</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.UKB"><code class="docutils literal notranslate"><span class="pre">UKB</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.UNA"><code class="docutils literal notranslate"><span class="pre">UNA</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.URU"><code class="docutils literal notranslate"><span class="pre">URU</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.UE"><code class="docutils literal notranslate"><span class="pre">UE</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.UHP"><code class="docutils literal notranslate"><span class="pre">UHP</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.UPI"><code class="docutils literal notranslate"><span class="pre">UPI</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.UEPS0"><code class="docutils literal notranslate"><span class="pre">UEPS0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.UMU0"><code class="docutils literal notranslate"><span class="pre">UMU0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.UC0"><code class="docutils literal notranslate"><span class="pre">UC0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.UME"><code class="docutils literal notranslate"><span class="pre">UME</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.S_STR"><code class="docutils literal notranslate"><span class="pre">S_STR</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.M_STR"><code class="docutils literal notranslate"><span class="pre">M_STR</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.L_STR"><code class="docutils literal notranslate"><span class="pre">L_STR</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#fortran-interop-helpers">Fortran interop helpers</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv411initializeCPKcPKcPKcPKcPKcKiKiKiKiKi"><code class="docutils literal notranslate"><span class="pre">initializeC()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv48finalizev"><code class="docutils literal notranslate"><span class="pre">finalize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv48get_nb_ev"><code class="docutils literal notranslate"><span class="pre">get_nb_e()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv49get_nb_atv"><code class="docutils literal notranslate"><span class="pre">get_nb_at()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv410get_nb_molv"><code class="docutils literal notranslate"><span class="pre">get_nb_mol()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv411get_nb_compv"><code class="docutils literal notranslate"><span class="pre">get_nb_comp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv414get_nb_speciesv"><code class="docutils literal notranslate"><span class="pre">get_nb_species()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv417get_nb_at_speciesv"><code class="docutils literal notranslate"><span class="pre">get_nb_at_species()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv418get_nb_mol_speciesv"><code class="docutils literal notranslate"><span class="pre">get_nb_mol_species()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv410get_at_idsPj"><code class="docutils literal notranslate"><span class="pre">get_at_ids()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv411get_mol_idsPj"><code class="docutils literal notranslate"><span class="pre">get_mol_ids()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv411get_nb_elemv"><code class="docutils literal notranslate"><span class="pre">get_nb_elem()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv415get_nb_rot_tempv"><code class="docutils literal notranslate"><span class="pre">get_nb_rot_temp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv415get_nb_vib_tempv"><code class="docutils literal notranslate"><span class="pre">get_nb_vib_temp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv414get_nb_el_tempv"><code class="docutils literal notranslate"><span class="pre">get_nb_el_temp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv411get_nb_tempv"><code class="docutils literal notranslate"><span class="pre">get_nb_temp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv416get_nb_post_tempv"><code class="docutils literal notranslate"><span class="pre">get_nb_post_temp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv46get_miPd"><code class="docutils literal notranslate"><span class="pre">get_mi()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv46get_RiPd"><code class="docutils literal notranslate"><span class="pre">get_Ri()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv47get_EfiPd"><code class="docutils literal notranslate"><span class="pre">get_Efi()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv46get_qiPd"><code class="docutils literal notranslate"><span class="pre">get_qi()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv49set_X_tolPKd"><code class="docutils literal notranslate"><span class="pre">set_X_tol()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv423get_eq_composition_molePKdPKdPdPdPKi"><code class="docutils literal notranslate"><span class="pre">get_eq_composition_mole()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv423get_eq_composition_massPKdPKdPdPdPKi"><code class="docutils literal notranslate"><span class="pre">get_eq_composition_mass()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv424get_eq_gamma_sound_speedPKdPKdPKdPdPd"><code class="docutils literal notranslate"><span class="pre">get_eq_gamma_sound_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv428get_frozen_gamma_sound_speedPKdPKdPKdPKdPdPd"><code class="docutils literal notranslate"><span class="pre">get_frozen_gamma_sound_speed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv422mass_to_mole_fractionsPKdPd"><code class="docutils literal notranslate"><span class="pre">mass_to_mole_fractions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv422mole_to_mass_fractionsPKdPd"><code class="docutils literal notranslate"><span class="pre">mole_to_mass_fractions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv418get_comp_fractionsPKdPd"><code class="docutils literal notranslate"><span class="pre">get_comp_fractions()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv414get_nb_densityPKdPKdPKdPKd"><code class="docutils literal notranslate"><span class="pre">get_nb_density()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv411get_densityPKdPKd"><code class="docutils literal notranslate"><span class="pre">get_density()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv412get_pressurePKdPKdPKd"><code class="docutils literal notranslate"><span class="pre">get_pressure()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv416species_enthalpyPKdPd"><code class="docutils literal notranslate"><span class="pre">species_enthalpy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv420get_energy_densitiesPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">get_energy_densities()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv410get_sourcePKjPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">get_source()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv411get_sigma_ePKdPKdPKdPKd"><code class="docutils literal notranslate"><span class="pre">get_sigma_e()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv411get_dyn_visPKdPKdPKdPKd"><code class="docutils literal notranslate"><span class="pre">get_dyn_vis()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv418get_bin_diff_coeffPKdPKdPKdPKdPKd"><code class="docutils literal notranslate"><span class="pre">get_bin_diff_coeff()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv414get_lambda_vecPKdPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">get_lambda_vec()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv48set_XtolPKd"><code class="docutils literal notranslate"><span class="pre">set_Xtol()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv421get_species_diff_fluxPKdPKdPKdPKdPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">get_species_diff_flux()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv414get_output_varPKiPKiPKdPd"><code class="docutils literal notranslate"><span class="pre">get_output_var()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv422post_process_solutionCPKcPKiPKiPKiPKdPKdPKiKi"><code class="docutils literal notranslate"><span class="pre">post_process_solutionC()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv430pre_initialize_ODE_integratorCPKcPKiPKiPKiPKcPKcPKiPKdPKdKiKiKi"><code class="docutils literal notranslate"><span class="pre">pre_initialize_ODE_integratorC()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv425initialize_ODE_integratorPKiPKdPKd"><code class="docutils literal notranslate"><span class="pre">initialize_ODE_integrator()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv410evolve_ODEPKiPKiPKiPKiPKdPdPdPKd"><code class="docutils literal notranslate"><span class="pre">evolve_ODE()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#unit-conversions">Unit conversions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.MS_TO_A0S"><code class="docutils literal notranslate"><span class="pre">MS_TO_A0S</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#c.A0S_TO_MS"><code class="docutils literal notranslate"><span class="pre">A0S_TO_MS</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api_doxygen.html#id1">C++ API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#id2">Main interface header</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv420plato_get_species_hfPd"><code class="docutils literal notranslate"><span class="pre">plato_get_species_hf()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv422plato_get_temperaturesPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_temperatures()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv416plato_get_sourcePKiPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_source()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv420plato_get_source_jacPKiPKdPKdPdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_source_jac()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv427plato_get_transp_coeff_compPKdPKdPKdPdPdPdPdPdPdPdPd"><code class="docutils literal notranslate"><span class="pre">plato_get_transp_coeff_comp()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#id3">Constants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#id4">Fortran interop helpers</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv427species_tot_vib_el_enthalpyPKdPdPdPd"><code class="docutils literal notranslate"><span class="pre">species_tot_vib_el_enthalpy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv410get_sourcePKiPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">get_source()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv416get_transp_coeffPKdPKdPKdPdPdPdPdPd"><code class="docutils literal notranslate"><span class="pre">get_transp_coeff()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4St"><code class="docutils literal notranslate"><span class="pre">std</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api_doxygen.html#gsl-bindings-optional">GSL Bindings (Optional)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#_CPPv414fit_arrheniusCPK6size_tPKdPKdPdPdPdPd"><code class="docutils literal notranslate"><span class="pre">fit_arrheniusC()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#_CPPv417interpolate_sigmaPK11sigma_tableKd"><code class="docutils literal notranslate"><span class="pre">interpolate_sigma()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#_CPPv411sigma_table"><code class="docutils literal notranslate"><span class="pre">sigma_table</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4N11sigma_table5n_ptsE"><code class="docutils literal notranslate"><span class="pre">n_pts</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4N11sigma_table1TE"><code class="docutils literal notranslate"><span class="pre">T</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4N11sigma_table6lambdaE"><code class="docutils literal notranslate"><span class="pre">lambda</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4N11sigma_table5E_minE"><code class="docutils literal notranslate"><span class="pre">E_min</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4N11sigma_table5E_maxE"><code class="docutils literal notranslate"><span class="pre">E_max</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4N11sigma_table1EE"><code class="docutils literal notranslate"><span class="pre">E</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4N11sigma_table5sigmaE"><code class="docutils literal notranslate"><span class="pre">sigma</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4N11sigma_table3accE"><code class="docutils literal notranslate"><span class="pre">acc</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api_doxygen.html#_CPPv4N11sigma_table6interpE"><code class="docutils literal notranslate"><span class="pre">interp</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#_CPPv422get_avg_mom_cross_secCPK6size_tPK6size_tPKdPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">get_avg_mom_cross_secC()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#_CPPv421get_avg_ff_cross_secCPKiPK6size_tPK6size_tPKdPKdPKdPKdPd"><code class="docutils literal notranslate"><span class="pre">get_avg_ff_cross_secC()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#c.DL_MODEL_FF"><code class="docutils literal notranslate"><span class="pre">DL_MODEL_FF</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#c.PL_MODEL_FF"><code class="docutils literal notranslate"><span class="pre">PL_MODEL_FF</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#c.KW_MODEL_FF"><code class="docutils literal notranslate"><span class="pre">KW_MODEL_FF</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#c.FAC_SIGMA_FF"><code class="docutils literal notranslate"><span class="pre">FAC_SIGMA_FF</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#_CPPv411sigma_ff_DLPK11sigma_tablePKdPKd"><code class="docutils literal notranslate"><span class="pre">sigma_ff_DL()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#_CPPv411sigma_ff_PLPK11sigma_tablePKdPKd"><code class="docutils literal notranslate"><span class="pre">sigma_ff_PL()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api_doxygen.html#_CPPv411sigma_ff_KWPK11sigma_tablePKdPKd"><code class="docutils literal notranslate"><span class="pre">sigma_ff_KW()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">PLATO</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Theory Guide</a></li>
+      <li class="breadcrumb-item active"><span class="section-number">5. </span>Equilibrium Composition</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/theory/equilibrium.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="equilibrium-composition">
+<span id="theory-equilibrium"></span><h1><span class="section-number">5. </span>Equilibrium Composition<a class="headerlink" href="#equilibrium-composition" title="Link to this heading"></a></h1>
+<p>This chapter describes PLATO’s algorithms for computing the chemical
+equilibrium (LTE) composition at a given <span class="math notranslate nohighlight">\((p, T)\)</span> or
+<span class="math notranslate nohighlight">\((\rho, T)\)</span>. Two solvers are available:</p>
+<ul class="simple">
+<li><p>A <strong>Newton–Raphson solver in log-space</strong> with Schur-complement
+reduction, following <a class="reference internal" href="#bottin1999" id="id1"><span>[Bottin1999]</span></a>. This is the default. An extended
+version applies Debye–Hückel corrections <a class="reference internal" href="#griem1962" id="id2"><span>[Griem1962]</span></a> for ionized
+plasmas.</p></li>
+<li><p>A <strong>Gibbs Function Continuation (GFC) solver</strong> following the
+multiphase formulation of <a class="reference internal" href="#scogginsmagin2015" id="id3"><span>[ScogginsMagin2015]</span></a>. This is opt-in,
+requires LAPACK, and is the appropriate choice for stiff mixtures,
+mixtures near phase transitions, and problems with generalized linear
+constraints.</p></li>
+</ul>
+<p>The Newton solver is implemented in
+<code class="docutils literal notranslate"><span class="pre">src/thermo/thermo_equilibrium_comp.F90</span></code> (standard) and
+<code class="docutils literal notranslate"><span class="pre">src/thermo/thermo_equilibrium_comp_dh.F90</span></code> (Debye–Hückel corrected).
+The GFC solver is implemented in <code class="docutils literal notranslate"><span class="pre">src/thermo/thermo_equil_gfc.F90</span></code>
+with supporting modules <code class="docutils literal notranslate"><span class="pre">src/thermo/thermo_equil_gfc_simplex.F90</span></code>
+(Simplex LP initialization) and
+<code class="docutils literal notranslate"><span class="pre">src/thermo/thermo_equil_gfc_linalg.F90</span></code> (LAPACK wrappers).</p>
+<p>The equilibrium constant that drives the law of mass action is derived
+from partition functions via microreversibility (see <a class="reference internal" href="thermodynamics.html#thermo-keq"><span class="std std-ref">Equilibrium Constant from Partition Functions</span></a>)
+or from Gibbs free energy via the NASA polynomial path <a class="reference internal" href="transport.html#magin-thesis" id="id4"><span>[Magin_thesis]</span></a>
+(Eq. 2.3).</p>
+<section id="problem-formulation">
+<h2><span class="section-number">5.1. </span>Problem Formulation<a class="headerlink" href="#problem-formulation" title="Link to this heading"></a></h2>
+<p>At local thermodynamic equilibrium, the composition is determined by
+three sets of constraints:</p>
+<ol class="arabic simple">
+<li><p><strong>Element conservation</strong> — the total abundance of each element is
+prescribed</p></li>
+<li><p><strong>Normalization</strong> — mole (or mass) fractions sum to unity</p></li>
+<li><p><strong>Law of mass action</strong> — the equilibrium constant relates species
+concentrations for each independent reaction</p></li>
+</ol>
+<p>These are combined into a nonlinear system of <span class="math notranslate nohighlight">\(n_{\mathrm{comp}}\)</span>
+equations in <span class="math notranslate nohighlight">\(n_{\mathrm{comp}}\)</span> unknowns.</p>
+<section id="element-conservation">
+<h3><span class="section-number">5.1.1. </span>Element Conservation<a class="headerlink" href="#element-conservation" title="Link to this heading"></a></h3>
+<p>For each element <span class="math notranslate nohighlight">\(e = 1, \ldots, n_{\mathrm{elem}}\)</span>:</p>
+<div class="math notranslate nohighlight" id="equation-eq-elem-cons">
+<span class="eqno">(5.1)<a class="headerlink" href="#equation-eq-elem-cons" title="Link to this equation"></a></span>\[\sum_{c=1}^{n_{\mathrm{comp}}} \nu_{ec} \, X_c = X_e^0\]</div>
+<p>where <span class="math notranslate nohighlight">\(\nu_{ec}\)</span> is the stoichiometric coefficient (number of
+atoms of element <span class="math notranslate nohighlight">\(e\)</span> in component <span class="math notranslate nohighlight">\(c\)</span>), <span class="math notranslate nohighlight">\(X_c\)</span> is the
+mole fraction, and <span class="math notranslate nohighlight">\(X_e^0\)</span> is the prescribed element mole fraction.</p>
+</section>
+<section id="normalization">
+<h3><span class="section-number">5.1.2. </span>Normalization<a class="headerlink" href="#normalization" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight" id="equation-eq-normalization">
+<span class="eqno">(5.2)<a class="headerlink" href="#equation-eq-normalization" title="Link to this equation"></a></span>\[\sum_{c=1}^{n_{\mathrm{comp}}} X_c = 1\]</div>
+</section>
+<section id="law-of-mass-action">
+<h3><span class="section-number">5.1.3. </span>Law of Mass Action<a class="headerlink" href="#law-of-mass-action" title="Link to this heading"></a></h3>
+<p>For each linearly independent reaction
+<span class="math notranslate nohighlight">\(r = n_{\mathrm{elem}}+1, \ldots, n_{\mathrm{comp}}\)</span>:</p>
+<div class="math notranslate nohighlight" id="equation-eq-mass-action">
+<span class="eqno">(5.3)<a class="headerlink" href="#equation-eq-mass-action" title="Link to this equation"></a></span>\[\sum_{c=1}^{n_{\mathrm{comp}}} \nu_{rc} \, \ln X_c
+= \ln K_{\mathrm{eq},r}(T) - \Delta\nu_r \ln\!\left(\frac{p}{p_0}\right)\]</div>
+<p>where <span class="math notranslate nohighlight">\(\Delta\nu_r = \sum_c \nu_{rc}\)</span> is the net change in moles.</p>
+<p>The equilibrium constant is computed from either path:</p>
+<ul>
+<li><p><strong>Partition functions</strong> (default):</p>
+<div class="math notranslate nohighlight" id="equation-eq-keq-pf">
+<span class="eqno">(5.4)<a class="headerlink" href="#equation-eq-keq-pf" title="Link to this equation"></a></span>\[\ln K_{\mathrm{eq},r} = \sum_c \nu_{rc}
+\left[\ln Q_c(T) + \ln m_c + \frac{e_{f,c}}{k_{\mathrm{B}} T}\right]
++ \Delta\nu_r \ln\!\left(\frac{k_{\mathrm{B}} T}{p}\right)\]</div>
+</li>
+<li><p><strong>NASA Gibbs free energy</strong> (<code class="docutils literal notranslate"><span class="pre">--enable-nasa_poly</span></code>):</p>
+<div class="math notranslate nohighlight" id="equation-eq-keq-nasa">
+<span class="eqno">(5.5)<a class="headerlink" href="#equation-eq-keq-nasa" title="Link to this equation"></a></span>\[\ln K_{\mathrm{eq},r} = -\frac{\Delta G_r^0(T)}{R_u T}\]</div>
+</li>
+</ul>
+</section>
+</section>
+<section id="newton-raphson-solver-in-log-space">
+<h2><span class="section-number">5.2. </span>Newton–Raphson Solver in Log-Space<a class="headerlink" href="#newton-raphson-solver-in-log-space" title="Link to this heading"></a></h2>
+<p>Following <a class="reference internal" href="#bottin1999" id="id5"><span>[Bottin1999]</span></a>, the system is solved by Newton–Raphson
+iteration in the <strong>logarithms</strong> of the unknowns, which automatically
+enforces positivity of all mole fractions:</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{x}^{(k+1)} = \mathbf{x}^{(k)} + \delta\mathbf{x}, \qquad
+\mathbf{J}(\mathbf{x}^{(k)}) \, \delta\mathbf{x} = -\mathbf{f}(\mathbf{x}^{(k)})\]</div>
+<p>where <span class="math notranslate nohighlight">\(\mathbf{x} = (\ln X_1, \ldots, \ln X_{n_{\mathrm{comp}}})^T\)</span>.</p>
+<p>The unknowns are clipped after each iteration to prevent overflow:
+<span class="math notranslate nohighlight">\(\ln X_c \in [\ln 10^{-99}, \, 0]\)</span>.</p>
+<section id="schur-complement-reduction">
+<h3><span class="section-number">5.2.1. </span>Schur Complement Reduction<a class="headerlink" href="#schur-complement-reduction" title="Link to this heading"></a></h3>
+<p>The Jacobian is partitioned into element and reaction blocks:</p>
+<div class="math notranslate nohighlight" id="equation-eq-schur">
+<span class="eqno">(5.6)<a class="headerlink" href="#equation-eq-schur" title="Link to this equation"></a></span>\[\begin{split}\begin{bmatrix}
+\mathbf{J}_{ee} &amp; \mathbf{J}_{er} \\
+\mathbf{J}_{re} &amp; \mathbf{J}_{rr}
+\end{bmatrix}
+\begin{bmatrix}
+\delta\mathbf{x}_e \\
+\delta\mathbf{x}_r
+\end{bmatrix}
+= -
+\begin{bmatrix}
+\mathbf{f}_e \\
+\mathbf{f}_r
+\end{bmatrix}\end{split}\]</div>
+<p>where:</p>
+<ul class="simple">
+<li><p><span class="math notranslate nohighlight">\(\mathbf{J}_{ee}\)</span> is <span class="math notranslate nohighlight">\((n_{\mathrm{elem}}+1) \times (n_{\mathrm{elem}}+1)\)</span> — element/normalization block</p></li>
+<li><p><span class="math notranslate nohighlight">\(\mathbf{J}_{rr}\)</span> is <span class="math notranslate nohighlight">\((n_{\mathrm{comp}} - n_{\mathrm{elem}}) \times (n_{\mathrm{comp}} - n_{\mathrm{elem}})\)</span> — reaction block</p></li>
+</ul>
+<p>The <strong>Schur complement</strong> is:</p>
+<div class="math notranslate nohighlight">
+\[\mathbf{S} = \mathbf{J}_{ee}
+- \mathbf{J}_{er} \, \mathbf{J}_{rr}^{-1} \, \mathbf{J}_{re}\]</div>
+<p>The solution proceeds:</p>
+<ol class="arabic simple">
+<li><p>Invert <span class="math notranslate nohighlight">\(\mathbf{J}_{rr}\)</span> (small, diagonal-dominant)</p></li>
+<li><p>Form and solve the reduced system <span class="math notranslate nohighlight">\(\mathbf{S} \, \delta\mathbf{x}_e = -\tilde{\mathbf{f}}_e\)</span></p></li>
+<li><p>Back-substitute for <span class="math notranslate nohighlight">\(\delta\mathbf{x}_r\)</span></p></li>
+</ol>
+<p>This exploits the block structure and reduces the effective system size
+to <span class="math notranslate nohighlight">\((n_{\mathrm{elem}}+1)\)</span>, which is small (e.g., 3 for air: N,
+O, + normalization).</p>
+</section>
+<section id="convergence-criterion">
+<h3><span class="section-number">5.2.2. </span>Convergence Criterion<a class="headerlink" href="#convergence-criterion" title="Link to this heading"></a></h3>
+<p>Convergence is declared when:</p>
+<div class="math notranslate nohighlight" id="equation-eq-convergence">
+<span class="eqno">(5.7)<a class="headerlink" href="#equation-eq-convergence" title="Link to this equation"></a></span>\[\log_{10} \left\| \sqrt{\frac{1}{n_{\mathrm{comp}}}
+\sum_c \left(\frac{X_c^{(k+1)} - X_c^{(k)}}{X_c^{(k+1)}}\right)^2}
+\right\| &lt; -12\]</div>
+<p>The maximum number of iterations is 100. For well-conditioned problems,
+convergence is typically achieved in 3–5 iterations.</p>
+</section>
+</section>
+<section id="debye-huckel-corrections">
+<span id="equil-debye"></span><h2><span class="section-number">5.3. </span>Debye–Hückel Corrections<a class="headerlink" href="#debye-huckel-corrections" title="Link to this heading"></a></h2>
+<p>For ionized plasmas, the standard equilibrium solver is extended with
+Debye–Hückel corrections (<code class="docutils literal notranslate"><span class="pre">thermo_equilibrium_comp_dh.F90</span></code>) that
+account for:</p>
+<section id="coulomb-chemical-potential">
+<h3><span class="section-number">5.3.1. </span>Coulomb Chemical Potential<a class="headerlink" href="#coulomb-chemical-potential" title="Link to this heading"></a></h3>
+<p>The right-hand side of the law of mass action is modified:</p>
+<div class="math notranslate nohighlight">
+\[\text{rhs}_r^{\mathrm{DH}} = \text{rhs}_r^{\mathrm{std}}
+- \frac{1}{k_{\mathrm{B}} T} \sum_c \nu_{rc} \, \mu_c^{\mathrm{Coulomb}}\]</div>
+<p>where <span class="math notranslate nohighlight">\(\mu_c^{\mathrm{Coulomb}}\)</span> is the Coulomb chemical potential
+from the Debye–Hückel theory.</p>
+</section>
+<section id="debye-screening">
+<h3><span class="section-number">5.3.2. </span>Debye Screening<a class="headerlink" href="#debye-screening" title="Link to this heading"></a></h3>
+<p>The Debye length:</p>
+<div class="math notranslate nohighlight">
+\[\lambda_D = \sqrt{\frac{\varepsilon_0 k_{\mathrm{B}} T_e}
+{n_e e^2 + \sum_{c \in \mathrm{ions}} Z_c^2 n_c e^2}}\]</div>
+<p>The effective number density in the DH-corrected equation of state
+differs from the ideal gas value.</p>
+</section>
+<section id="ionization-potential-lowering-griem-s-criterion">
+<h3><span class="section-number">5.3.3. </span>Ionization Potential Lowering (Griem’s Criterion)<a class="headerlink" href="#ionization-potential-lowering-griem-s-criterion" title="Link to this heading"></a></h3>
+<p>The number of electronic levels included in the partition function is
+<strong>truncated</strong> based on Griem’s criterion: only levels whose binding
+energy exceeds the Coulomb interaction energy are retained. This
+prevents divergence of the partition function at high temperatures.</p>
+<p>The truncation is applied iteratively at each Newton step via
+<code class="docutils literal notranslate"><span class="pre">update_nb_el_levels_DH()</span></code>, since the Debye length depends on the
+composition which is being solved for.</p>
+</section>
+<section id="coulomb-pressure-and-energy">
+<h3><span class="section-number">5.3.4. </span>Coulomb Pressure and Energy<a class="headerlink" href="#coulomb-pressure-and-energy" title="Link to this heading"></a></h3>
+<p>The equation of state includes Coulomb corrections:</p>
+<div class="math notranslate nohighlight">
+\[p = p_{\mathrm{ideal}} + p_{\mathrm{Coulomb}}, \qquad
+e = e_{\mathrm{ideal}} + e_{\mathrm{Coulomb}}\]</div>
+<p>These corrections also affect the adiabatic exponents
+<span class="math notranslate nohighlight">\(\Gamma_1, \Gamma_2, \Gamma_3\)</span>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The DH-corrected solver uses a stricter convergence threshold
+(<span class="math notranslate nohighlight">\(10^{-14}\)</span>) and additional clipping (<span class="math notranslate nohighlight">\(\ln X &gt; -228\)</span>)
+for numerical stability with strongly ionized plasmas.</p>
+</div>
+</section>
+</section>
+<section id="gibbs-function-continuation-gfc-solver">
+<span id="equil-gfc"></span><h2><span class="section-number">5.4. </span>Gibbs Function Continuation (GFC) Solver<a class="headerlink" href="#gibbs-function-continuation-gfc-solver" title="Link to this heading"></a></h2>
+<p>The GFC solver in PLATO implements the <strong>multiphase Gibbs function
+continuation</strong> algorithm of <a class="reference internal" href="#scogginsmagin2015" id="id6"><span>[ScogginsMagin2015]</span></a>, with two
+PLATO-specific extensions for robustness at low temperature (described
+in <a class="reference internal" href="#equil-gfc-plato-extensions"><span class="std std-ref">PLATO Extensions to GFC</span></a>).</p>
+<section id="motivation">
+<h3><span class="section-number">5.4.1. </span>Motivation<a class="headerlink" href="#motivation" title="Link to this heading"></a></h3>
+<p>The difficulty in solving the equilibrium system
+<a class="reference internal" href="#equation-eq-elem-cons">(5.1)</a>–<a class="reference internal" href="#equation-eq-mass-action">(5.3)</a> by Newton–Raphson is that the
+system Jacobian can become near-singular when the equilibrium
+composition lies close to the boundary of the feasible region defined
+by the constraints, or when condensed phases appear and disappear. In
+such situations the Newton initial-guess proximity condition cannot be
+satisfied in practice, because the condition number of the Jacobian
+diverges as the matrix approaches singularity <a class="reference internal" href="#scogginsmagin2015" id="id7"><span>[ScogginsMagin2015]</span></a>.</p>
+<p>GFC avoids this failure mode by reformulating the static equilibrium
+problem as an <strong>initial-value problem</strong> in a continuation parameter
+<span class="math notranslate nohighlight">\(s \in [0, 1]\)</span>, which is integrated from a cheap, approximate
+starting composition to the true equilibrium. The integration is
+globally convergent for any well-posed set of constraints.</p>
+</section>
+<section id="element-potential-equations">
+<h3><span class="section-number">5.4.2. </span>Element Potential Equations<a class="headerlink" href="#element-potential-equations" title="Link to this heading"></a></h3>
+<p>The GFC derivation starts from the Lagrangian of the Gibbs free energy
+minimization problem subject to the linear constraints
+<a class="reference internal" href="#equation-eq-elem-cons">(5.1)</a>. Introducing Lagrange multipliers <span class="math notranslate nohighlight">\(\lambda_e\)</span>
+(one per element) and setting the gradient of the Lagrangian to zero
+yields the <strong>element potential equations</strong> <a class="reference internal" href="#scogginsmagin2015" id="id8"><span>[ScogginsMagin2015]</span></a>
+(Eq. 15):</p>
+<div class="math notranslate nohighlight" id="equation-eq-epe">
+<span class="eqno">(5.8)<a class="headerlink" href="#equation-eq-epe" title="Link to this equation"></a></span>\[N_c = \bar{N}_{p_c} \exp\!\left(
+   -\tilde{g}_c + \sum_{e=1}^{n_{\mathrm{elem}}} \lambda_e \nu_{ec}
+\right),
+\qquad c = 1, \dots, n_{\mathrm{comp}}\]</div>
+<p>where <span class="math notranslate nohighlight">\(N_c\)</span> is the number of moles of component <span class="math notranslate nohighlight">\(c\)</span>,
+<span class="math notranslate nohighlight">\(\bar{N}_{p_c}\)</span> is the total moles in its phase,
+<span class="math notranslate nohighlight">\(\tilde{g}_c(T,p)\)</span> is the non-dimensional pure-component Gibbs
+function, and <span class="math notranslate nohighlight">\(\lambda_e\)</span> are the element potentials. Substituting
+<a class="reference internal" href="#equation-eq-epe">(5.8)</a> into the mass-balance constraints <a class="reference internal" href="#equation-eq-elem-cons">(5.1)</a> yields
+a nonlinear system of size <span class="math notranslate nohighlight">\(n_{\mathrm{elem}}\)</span> (plus
+<span class="math notranslate nohighlight">\(n_{\mathrm{phase}}\)</span> phase-mole unknowns in the multiphase case).</p>
+</section>
+<section id="continuation-formulation">
+<h3><span class="section-number">5.4.3. </span>Continuation Formulation<a class="headerlink" href="#continuation-formulation" title="Link to this heading"></a></h3>
+<p>Rather than solving <a class="reference internal" href="#equation-eq-epe">(5.8)</a> and <a class="reference internal" href="#equation-eq-elem-cons">(5.1)</a> directly by
+Newton’s method, GFC introduces an auxiliary Gibbs vector
+<span class="math notranslate nohighlight">\(\hat{g}(s)\)</span> linear in the continuation parameter
+<a class="reference internal" href="#scogginsmagin2015" id="id9"><span>[ScogginsMagin2015]</span></a> (Eq. 23):</p>
+<div class="math notranslate nohighlight" id="equation-eq-continuation">
+<span class="eqno">(5.9)<a class="headerlink" href="#equation-eq-continuation" title="Link to this equation"></a></span>\[\hat{g}(s) = \hat{g}(0) + s \, [\tilde{g} - \hat{g}(0)],
+\qquad s \in [0, 1],\]</div>
+<p>where <span class="math notranslate nohighlight">\(\hat{g}(0)\)</span> is chosen such that an easily-computed
+starting composition <span class="math notranslate nohighlight">\(N^{(0)}\)</span> satisfies the equilibrium equations
+exactly at <span class="math notranslate nohighlight">\(s = 0\)</span>. The true equilibrium is reached at
+<span class="math notranslate nohighlight">\(s = 1\)</span>. Its value is obtained by numerically integrating the
+tangent system</p>
+<div class="math notranslate nohighlight" id="equation-eq-gfc-ivp">
+<span class="eqno">(5.10)<a class="headerlink" href="#equation-eq-gfc-ivp" title="Link to this equation"></a></span>\[\hat{x}(1) = \int_0^1 \frac{d\hat{x}}{ds}\, ds + \hat{x}(0),\]</div>
+<p>where <span class="math notranslate nohighlight">\(\hat{x}(s)\)</span> stacks the element potentials
+<span class="math notranslate nohighlight">\(\lambda(s)\)</span> and the log-phase-moles <span class="math notranslate nohighlight">\(\ln \bar{N}(s)\)</span>.</p>
+<p>The tangent <span class="math notranslate nohighlight">\(d\hat{x}/ds\)</span> is determined from the implicit relation
+<span class="math notranslate nohighlight">\(dR/ds = 0\)</span>, where <span class="math notranslate nohighlight">\(R\)</span> is the residual of the equilibrium
+equations. Its evaluation requires solving two small least-squares
+problems derived from the element-potential Jacobian; their solutions’
+residuals lie in a null space that guarantees the tangent can be
+computed stably (see <a class="reference internal" href="#scogginsmagin2015" id="id10"><span>[ScogginsMagin2015]</span></a>, Section 3.2).</p>
+<p>The integration is <strong>globally convergent</strong>: the system matrix whose
+factorization determines <span class="math notranslate nohighlight">\(d\hat{x}/ds\)</span> is proven to be symmetric
+positive definite with strictly positive eigenvalues for any well-posed
+set of constraints (<a class="reference internal" href="#scogginsmagin2015" id="id11"><span>[ScogginsMagin2015]</span></a>, Appendix A). Unlike Newton’s
+method, there is no proximity condition on the initial guess.</p>
+</section>
+<section id="initialization-simplex-lp">
+<h3><span class="section-number">5.4.4. </span>Initialization: Simplex LP<a class="headerlink" href="#initialization-simplex-lp" title="Link to this heading"></a></h3>
+<p>The GFC starting composition <span class="math notranslate nohighlight">\(N^{(0)}\)</span> is constructed as a convex
+combination of two compositions obtained by linear programming, both
+implemented in <code class="docutils literal notranslate"><span class="pre">thermo_equil_gfc_simplex.F90</span></code>:</p>
+<ul>
+<li><p>The <strong>Min-G</strong> composition,</p>
+<div class="math notranslate nohighlight">
+\[N^{\mathrm{Min\text{-}G}} = \arg\min_{N \in \mathcal{B}}
+                            \, N^\top \tilde{g},\]</div>
+<p>minimizes the sum of species Gibbs energies subject to the constraints.
+Its Simplex-algorithm solution approximates the dominant species, but
+has at most <span class="math notranslate nohighlight">\(n_{\mathrm{elem}}\)</span> nonzero entries.</p>
+</li>
+<li><p>The <strong>Max–Min</strong> composition,</p>
+<div class="math notranslate nohighlight">
+\[N^{\mathrm{Max\text{-}Min}} = \arg\max_{N \in \mathcal{B}}
+                              \, \min_c N_c,\]</div>
+<p>maximizes the smallest component mole count subject to the same
+constraints. All components are strictly positive.</p>
+</li>
+</ul>
+<p>PLATO uses the recommended mixing fraction <span class="math notranslate nohighlight">\(\alpha = 0.01\)</span>
+(<a class="reference internal" href="#scogginsmagin2015" id="id12"><span>[ScogginsMagin2015]</span></a> Eq. 28):</p>
+<div class="math notranslate nohighlight" id="equation-eq-gfc-init">
+<span class="eqno">(5.11)<a class="headerlink" href="#equation-eq-gfc-init" title="Link to this equation"></a></span>\[N^{(0)} = (1 - \alpha) \, N^{\mathrm{Min\text{-}G}}
+        + \alpha \, N^{\mathrm{Max\text{-}Min}},\]</div>
+<p>so that the Min-G estimate dominates while the Max–Min contribution
+regularizes the logarithm in the Gibbs functional.</p>
+</section>
+<section id="integration-and-phase-handling">
+<h3><span class="section-number">5.4.5. </span>Integration and Phase Handling<a class="headerlink" href="#integration-and-phase-handling" title="Link to this heading"></a></h3>
+<p>The continuation integral <a class="reference internal" href="#equation-eq-gfc-ivp">(5.10)</a> is evaluated with an adaptive
+forward-Euler step in <span class="math notranslate nohighlight">\(s\)</span>, with a Newton correction applied at
+each step to drive the residual below tolerance. Step sizes halve on
+Newton failure and double on success, capped at <span class="math notranslate nohighlight">\(\Delta s = 1\)</span>.</p>
+<p>Condensed phases are handled by the vapor-pressure test
+<a class="reference internal" href="#scogginsmagin2015" id="id13"><span>[ScogginsMagin2015]</span></a> (Eq. 47): at <span class="math notranslate nohighlight">\(s = 1\)</span>, every phase not
+currently in the equilibrium solution is tested for whether its
+inclusion would lower the Gibbs energy. If so, the phase is added via
+the redistribution procedure of <a class="reference internal" href="#scogginsmagin2015" id="id14"><span>[ScogginsMagin2015]</span></a> (Eqs. 48–50), and
+the continuation is restarted. Single-phase gas mixtures — the common
+case in PLATO’s hypersonic applications — skip this test.</p>
+</section>
+<section id="plato-extensions-to-gfc">
+<span id="equil-gfc-plato-extensions"></span><h3><span class="section-number">5.4.6. </span>PLATO Extensions to GFC<a class="headerlink" href="#plato-extensions-to-gfc" title="Link to this heading"></a></h3>
+<p>PLATO’s GFC implementation differs from the reference <a class="reference internal" href="#scogginsmagin2015" id="id15"><span>[ScogginsMagin2015]</span></a>
+algorithm (as implemented in the Mutation++ library) in two ways, both
+targeting numerical robustness at low temperature. Both are applied
+post-convergence inside <code class="docutils literal notranslate"><span class="pre">unpack_mole_fractions</span></code> and do not modify the
+continuation integration itself.</p>
+<section id="log-space-charge-neutrality-projection">
+<h4><span class="section-number">5.4.6.1. </span>Log-space charge-neutrality projection<a class="headerlink" href="#log-space-charge-neutrality-projection" title="Link to this heading"></a></h4>
+<p>For ionized mixtures, global charge neutrality</p>
+<div class="math notranslate nohighlight" id="equation-eq-charge-neutrality">
+<span class="eqno">(5.12)<a class="headerlink" href="#equation-eq-charge-neutrality" title="Link to this equation"></a></span>\[\sum_c Z_c N_c = 0\]</div>
+<p>(where <span class="math notranslate nohighlight">\(Z_c\)</span> is the charge number of component <span class="math notranslate nohighlight">\(c\)</span>) enters
+the GFC algorithm as one of the linear mass-balance constraints, with
+the electron playing the role of a “charge element.” This works
+correctly in aggregate: the total free charge on ions matches the total
+electron count to the tolerance of the solver.</p>
+<p>However, the constraint <a class="reference internal" href="#equation-eq-charge-neutrality">(5.12)</a> is a single linear
+relation that admits infinitely many numerical splits between individual
+positive ions and the electron population. At low temperature
+(<span class="math notranslate nohighlight">\(T \lesssim 1700\)</span> K in air), where the ionization fraction is
+itself at the level of the deep-cold floor <span class="math notranslate nohighlight">\(X_c \sim 10^{-50}\)</span> or
+smaller, the pseudo-equilibrium path integration can converge to a state
+in which the electron mole fraction <span class="math notranslate nohighlight">\(X_{e^-}\)</span> and, say, the
+atomic-ion mole fraction <span class="math notranslate nohighlight">\(X_{\mathrm{O}^+}\)</span> differ by many orders
+of magnitude while <a class="reference internal" href="#equation-eq-charge-neutrality">(5.12)</a> remains satisfied in
+aggregate (the imbalance is absorbed by other ions at the floor). Such
+states are numerically valid solutions of the GFC residual equations
+but are unphysical.</p>
+<p>PLATO addresses this by applying a <strong>symmetric projection onto the
+charge-neutrality manifold in log-space</strong> after GFC convergence. The
+projection operates on <span class="math notranslate nohighlight">\(\ln X_c\)</span> rather than <span class="math notranslate nohighlight">\(X_c\)</span>, which
+is numerically appropriate because the individual ionic populations
+span many orders of magnitude at low temperature. The projection
+redistributes the small ionic populations so that pairwise charge
+balance is restored to machine precision without perturbing the total
+element moles or the neutral-species mole fractions.</p>
+<p>The projection is triggered only when the aggregate charge-balance
+residual exceeds <span class="math notranslate nohighlight">\(10^{-2}\)</span> of the electron population — well above
+any physically meaningful imbalance but below the level at which the
+imbalance begins to corrupt downstream derivative and transport
+calculations.</p>
+</section>
+<section id="post-convergence-deep-cold-floor">
+<h4><span class="section-number">5.4.6.2. </span>Post-convergence deep-cold floor<a class="headerlink" href="#post-convergence-deep-cold-floor" title="Link to this heading"></a></h4>
+<p>The pseudo-equilibrium path in GFC can carry component mole fractions to
+values below <span class="math notranslate nohighlight">\(10^{-99}\)</span>, at which point they are indistinguishable
+from floating-point noise. PLATO applies the same symmetric floor used
+by the Newton solver,</p>
+<div class="math notranslate nohighlight">
+\[X_c \geq \exp(\texttt{DLOG\_TOL2}) \approx 10^{-99},
+\qquad \texttt{DLOG\_TOL2} = -228,\]</div>
+<p>post-convergence inside <code class="docutils literal notranslate"><span class="pre">unpack_mole_fractions</span></code>. This mirrors the
+Newton behavior exactly and ensures that downstream consumers (Gibbs
+derivatives, transport coefficients) see the same numerical floor
+regardless of which solver computed the equilibrium.</p>
+</section>
+</section>
+<section id="solver-agreement">
+<h3><span class="section-number">5.4.7. </span>Solver agreement<a class="headerlink" href="#solver-agreement" title="Link to this heading"></a></h3>
+<p>With the above extensions in place, Newton and GFC are verified against
+each other across all PLATO regression mixtures (air5, air11, ablation
+products, Mars gas) at temperatures from 200 K to 20 000 K. The two
+solvers produce <strong>bit-identical component mole fractions</strong> at every
+tested point, including the low-temperature ionized regime where the
+reference <a class="reference internal" href="#scogginsmagin2015" id="id16"><span>[ScogginsMagin2015]</span></a> algorithm (without the charge-neutrality
+projection) produces imbalanced results.</p>
+<p>This agreement is a strong internal consistency check: two independently
+derived numerical methods, starting from different initial compositions
+and following different paths to the solution, converge on the same
+answer to the last bit of double precision. It also establishes that
+the chemical derivatives described in the next chapter
+(<a class="reference internal" href="chemical_derivatives.html#theory-chemical-derivatives"><span class="std std-ref">Chemical Derivatives</span></a>) can be computed from either
+solver’s equilibrium state without affecting the numerical result.</p>
+</section>
+<section id="when-to-use-gfc">
+<h3><span class="section-number">5.4.8. </span>When to Use GFC<a class="headerlink" href="#when-to-use-gfc" title="Link to this heading"></a></h3>
+<p>In single-phase hypersonic gas mixtures above a few thousand kelvin,
+Newton and GFC produce bit-identical results and Newton is faster. GFC
+should be selected when:</p>
+<ul class="simple">
+<li><p>the mixture includes <strong>condensed phases</strong> (ablation products,
+pyrolysis gases, soot);</p></li>
+<li><p><strong>generalized linear constraints</strong> beyond mass balance are imposed
+(for example, constraints on total moles or on bond counts);</p></li>
+<li><p><strong>Newton fails to converge</strong> on a stiff mixture near a phase
+transition;</p></li>
+<li><p>an <strong>ionized mixture at low temperature</strong> is being computed, where
+the charge-neutrality projection ensures physical symmetry between
+electron and ion populations.</p></li>
+</ul>
+<p>GFC is selected with the <code class="docutils literal notranslate"><span class="pre">--solver</span> <span class="pre">gfc</span></code> flag on the <code class="docutils literal notranslate"><span class="pre">plato_equil</span></code>
+CLI, or programmatically through the <code class="docutils literal notranslate"><span class="pre">method</span></code> argument of the
+equilibrium interface.</p>
+</section>
+</section>
+<section id="public-api">
+<h2><span class="section-number">5.5. </span>Public API<a class="headerlink" href="#public-api" title="Link to this heading"></a></h2>
+<div class="highlight-fortran notranslate"><div class="highlight"><pre><span></span><span class="c">! Mole fraction form (C-bound)</span>
+<span class="k">call </span><span class="n">get_eq_composition_mole</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">Xc</span><span class="p">,</span><span class="w"> </span><span class="n">Xi</span><span class="p">,</span><span class="w"> </span><span class="n">flag</span><span class="p">)</span>
+
+<span class="c">! Mass fraction form (C-bound)</span>
+<span class="k">call </span><span class="n">get_eq_composition_mass</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span><span class="w"> </span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">yc</span><span class="p">,</span><span class="w"> </span><span class="n">yi</span><span class="p">,</span><span class="w"> </span><span class="n">flag</span><span class="p">)</span>
+
+<span class="c">! Equilibrium gamma and sound speed</span>
+<span class="k">call </span><span class="n">get_eq_gamma_sound_speed</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">rho</span><span class="p">,</span><span class="w"> </span><span class="n">yi</span><span class="p">,</span><span class="w"> </span><span class="nb">gamma</span><span class="p">,</span><span class="w"> </span><span class="n">cf</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Arguments:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">p</span></code> — pressure [Pa]</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">T</span></code> — temperature [K]</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Xc(nb_comp)</span></code> — output component mole fractions</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Xi(nb_species)</span></code> — output species mole fractions (includes trace
+species)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">flag</span></code> — convergence flag (0 = success)</p></li>
+</ul>
+<p class="rubric">References</p>
+<div role="list" class="citation-list">
+<div class="citation" id="bottin1999" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>Bottin1999<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id1">1</a>,<a role="doc-backlink" href="#id5">2</a>)</span>
+<p>B. Bottin, D. Vanden Abeele, M. Carbonaro, G. Degrez,
+and G.S.R. Sarma, “Thermodynamic and Transport Properties for
+Inductive Plasma Modeling,” <em>J. Thermophysics and Heat Transfer</em>,
+Vol. 13, No. 3, pp. 343–350, 1999.</p>
+</div>
+<div class="citation" id="griem1962" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id2">Griem1962</a><span class="fn-bracket">]</span></span>
+<p>H.R. Griem, “High-Density Corrections in Plasma
+Spectroscopy,” <em>Physical Review</em>, Vol. 128, No. 3, pp. 997–1003,
+1962.</p>
+</div>
+<div class="citation" id="magin-thesis" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id4">Magin_thesis</a><span class="fn-bracket">]</span></span>
+<p>T.E. Magin, “A Model for Inductive Plasma Wind
+Tunnels,” PhD Thesis, Université Libre de Bruxelles, 2004.</p>
+</div>
+<div class="citation" id="scogginsmagin2015" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span>ScogginsMagin2015<span class="fn-bracket">]</span></span>
+<span class="backrefs">(<a role="doc-backlink" href="#id3">1</a>,<a role="doc-backlink" href="#id6">2</a>,<a role="doc-backlink" href="#id7">3</a>,<a role="doc-backlink" href="#id8">4</a>,<a role="doc-backlink" href="#id9">5</a>,<a role="doc-backlink" href="#id10">6</a>,<a role="doc-backlink" href="#id11">7</a>,<a role="doc-backlink" href="#id12">8</a>,<a role="doc-backlink" href="#id13">9</a>,<a role="doc-backlink" href="#id14">10</a>,<a role="doc-backlink" href="#id15">11</a>,<a role="doc-backlink" href="#id16">12</a>)</span>
+<p>J.B. Scoggins and T.E. Magin, “Gibbs function
+continuation for linearly constrained multiphase equilibria,”
+<em>Combustion and Flame</em>, Vol. 162, No. 12, pp. 4514–4522, 2015.
+DOI: <a class="reference external" href="https://doi.org/10.1016/j.combustflame.2015.08.027">10.1016/j.combustflame.2015.08.027</a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="nonequilibrium.html" class="btn btn-neutral float-left" title="4. Nonequilibrium Models" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="chemical_derivatives.html" class="btn btn-neutral float-right" title="6. Chemical Derivatives" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Alessandro Munafo, Marco Panesi.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
